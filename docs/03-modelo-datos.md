@@ -121,7 +121,7 @@ Clientes web se deduplican por email.
 | room_width_cm / room_height_cm / room_depth_cm | int | depth NULL |
 | input_key | varchar(255) | foto optimizada (≤1280 px) en storage |
 | input_hash | varchar(64) | sha256 de la foto optimizada |
-| cache_key | varchar(64) | sha256(input_hash + product_id + medidas + modelo + calidad + tamaño) — para reutilizar resultados |
+| cache_key | varchar(64) | sha256(input_hash + product_id + medidas + placement + modelo + calidad + tamaño + variant) — para reutilizar resultados |
 | output_key | varchar(255) | resultado optimizado (≤768 px) en storage |
 | output_full_key | varchar(255) | resultado tal como lo devolvió el modelo (opcional) |
 | prompt | text | prompt final enviado |

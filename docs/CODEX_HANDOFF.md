@@ -232,7 +232,7 @@ DASHBOARD_ADMIN_KEY=change-me-admin-key
 DASHBOARD_PASSWORD=                 # si se define, el dashboard pide contraseña
 ```
 
-`Settings` valida: si `AI_MODE=live` y falta `OPENAI_API_KEY` → arranca forzando `mock` y registra advertencia. Si `TELEGRAM_BOT_TOKEN` vacío → `TELEGRAM_MODE=disabled`.
+`Settings` valida: con `APP_ENV=production`, si `ADMIN_API_KEY` o `TELEGRAM_WEBHOOK_SECRET` empiezan por `change-me` → error y no arranca. Si `AI_MODE=live` y falta `OPENAI_API_KEY` → arranca forzando `mock` y registra advertencia. Si `TELEGRAM_BOT_TOKEN` vacío → `TELEGRAM_MODE=disabled`.
 
 ---
 
@@ -270,6 +270,7 @@ Máquina de estados (`conversations.state`):
 | `idle` | callback `order:<quote_code>` | pide teléfono y dirección (`order_contact`) → crea pedido demo |
 | `order_contact` | texto | guarda contacto → `create_order` → `idle` |
 | cualquiera | `/cancelar` o `cancelar` | limpia `context`, → `idle` |
+| `idle` | `/catalogo`, `/simular`, `/cotizar`, `/estado <código>` | equivalentes a los botones: catálogo, simular el producto seleccionado (o pedir elegir uno), cotizar el seleccionado, `get_request_status` |
 
 Reglas:
 - Idempotencia: ignorar `update_id` ya procesado (cache LRU en memoria de 1000 ids).
@@ -307,6 +308,8 @@ Reglas:
 7. `cost_usd = pricing.estimate_image_edit(model, quality, size, usage)`; `api_usage` insert; `simulations_used += 1`; `status='completed'`; evento `simulation.completed`.
 8. Enviar foto (≤768 px) con `result_caption` + botones ⭐1–5.
 9. Error → `status='failed'`, `error_logs`, evento `simulation.failed`, **no** consume cuota del cliente; mensaje de disculpa.
+
+**Métricas**: `simulations_total` = simulaciones `completed` (incluye reutilizadas); `simulations_reused` = con `reused_from_id`; generadas con costo = total − reutilizadas. El admin puede reiniciar la cuota con `PATCH /admin/customers/{id}` `{"simulations_used": 0}` (útil para la demo).
 
 **Regeneración**: botón "Generar otra versión" solo si quedan cuotas; exige nueva confirmación explícita (nuevo `sim_confirm`) y no usa caché (agrega `variant` al cache_key).
 
@@ -362,6 +365,8 @@ DEFAULT_UNKNOWN_IMAGE_COST = 0.05  # si el modelo/tamaño no está en tabla → 
 | `product.low_stock` | stock ≤ umbral tras confirmar pedido o PATCH | Notificar admin "⚠️ Stock bajo: … quedan N" (una vez por producto hasta reponer) |
 | `budget.warning` | 80% presupuesto | Notificar admin |
 | `summary.daily` | scheduler 20:00 / endpoint | Notificar admin: conversaciones, consultas, cotizaciones, pedidos, simulaciones, rating promedio, gasto API del día |
+
+`summary.daily` es idempotente: si ya existe un evento `summary.daily` con la fecha local de hoy, el endpoint/job no reenvía (respuesta `{"sent": false, "reason": "already_sent"}`), salvo `?force=true`.
 
 Scheduler (APScheduler `BackgroundScheduler`, si `SCHEDULER_ENABLED`): resumen diario, expirar cotizaciones vencidas (cada hora), limpiar fotos (diario). En Render free el servicio duerme; por eso `daily-summary.yml` en GitHub Actions llama al endpoint como respaldo (y despierta el servicio).
 
