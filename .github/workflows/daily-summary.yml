@@ -1,0 +1,45 @@
+name: Daily summary
+
+# Respaldo del scheduler interno: Render free duerme el servicio, así que GitHub Actions
+# lo despierta y dispara el resumen diario. 01:00 UTC = 20:00 America/Lima.
+on:
+  schedule:
+    - cron: "0 1 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  daily-summary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      BACKEND_URL: ${{ vars.BACKEND_URL }}
+      ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
+    steps:
+      - name: POST /admin/jobs/daily-summary
+        shell: bash
+        run: |
+          set -uo pipefail
+          if [ -z "${BACKEND_URL:-}" ] || [ -z "${ADMIN_API_KEY:-}" ]; then
+            echo "::notice::BACKEND_URL (variable) o ADMIN_API_KEY (secret) no configurados; se omite."
+            exit 0
+          fi
+          url="${BACKEND_URL%/}/admin/jobs/daily-summary"
+          for i in $(seq 1 8); do
+            code=$(curl --silent --max-time 60 -o response.json -w "%{http_code}" \
+              -X POST "$url" -H "X-Admin-Key: $ADMIN_API_KEY" || echo "000")
+            if [ "${code:0:1}" = "2" ]; then
+              echo "Resumen enviado (HTTP $code)."
+              exit 0
+            fi
+            if [ "$code" = "401" ] || [ "$code" = "403" ]; then
+              echo "::error::Clave de administrador rechazada (HTTP $code)."
+              exit 1
+            fi
+            echo "Intento $i/8: HTTP $code (el servicio puede estar despertando). Reintento en 30 s..."
+            sleep 30
+          done
+          echo "::error::No se pudo disparar el resumen diario."
+          exit 1
