@@ -1,5 +1,6 @@
 """Punto de entrada FastAPI. Ver docs/CODEX_HANDOFF.md."""
 
+import importlib
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -64,6 +65,8 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     register_error_handlers(app)
+    importlib.import_module("app.automation.handlers")  # registra reacciones a eventos
+
     app.mount("/static/products", StaticFiles(directory=BACKEND_ROOT / "seed" / "images"), name="products")
 
     @app.get("/health")
@@ -89,8 +92,6 @@ def create_app() -> FastAPI:
 
 
 def _include_optional_routers(app: FastAPI) -> None:
-    import importlib
-
     for mod in ("app.api.public", "app.api.admin", "app.api.media", "app.api.telegram"):
         try:
             module = importlib.import_module(mod)
