@@ -1,0 +1,72 @@
+name: Deploy
+
+# Despliega en Render solo cuando CI terminó con éxito en main (autoDeploy=false en render.yaml).
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Disparar deploy hooks de Render
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      RENDER_DEPLOY_HOOK_BACKEND: ${{ secrets.RENDER_DEPLOY_HOOK_BACKEND }}
+      RENDER_DEPLOY_HOOK_FRONTEND: ${{ secrets.RENDER_DEPLOY_HOOK_FRONTEND }}
+      RENDER_DEPLOY_HOOK_DASHBOARD: ${{ secrets.RENDER_DEPLOY_HOOK_DASHBOARD }}
+      BACKEND_URL: ${{ vars.BACKEND_URL }}
+    steps:
+      - name: Disparar deploy hooks
+        shell: bash
+        run: |
+          set -euo pipefail
+          triggered=0
+          for name in BACKEND FRONTEND DASHBOARD; do
+            var="RENDER_DEPLOY_HOOK_${name}"
+            hook="${!var:-}"
+            if [ -z "$hook" ]; then
+              echo "::notice::$var no configurado; se omite el deploy de ${name,,}."
+              continue
+            fi
+            echo "Disparando deploy de ${name,,}..."
+            curl --fail --silent --show-error --retry 3 --retry-delay 5 -X POST "$hook" -o /dev/null
+            triggered=$((triggered + 1))
+          done
+          echo "Deploys disparados: $triggered"
+          echo "TRIGGERED=$triggered" >> "$GITHUB_ENV"
+
+      - name: Smoke test /health (espera cold start de Render free)
+        if: env.BACKEND_URL != '' && env.TRIGGERED != '0'
+        shell: bash
+        run: |
+          set -uo pipefail
+          url="${BACKEND_URL%/}/health"
+          # El deploy tarda en arrancar; damos margen antes de empezar a sondear.
+          sleep 60
+          for i in $(seq 1 24); do
+            body=$(curl --silent --max-time 20 "$url" || true)
+            if echo "$body" | grep -q '"status":"ok"'; then
+              echo "Backend saludable: $body"
+              if ! echo "$body" | grep -q '"db":"ok"'; then
+                echo "::warning::/health responde pero la BD no está ok: $body"
+              fi
+              exit 0
+            fi
+            echo "Intento $i/24: aún no responde ($url). Reintentando en 10 s..."
+            sleep 10
+          done
+          echo "::error::$url no respondió status ok en ~5 minutos."
+          exit 1

@@ -41,17 +41,17 @@
 - **Decisión**: interfaz `AIProvider` con `OpenAIProvider` y `MockProvider`. El mock detecta intención por palabras clave y llama a las **mismas herramientas reales**; para imágenes compone la foto con una franja "SIMULACIÓN DEMO" y la miniatura del producto. Si `AI_MODE=live` sin `OPENAI_API_KEY`, se fuerza mock.
 - **Consecuencias**: (+) costo 0 en desarrollo y CI; flujos completos demostrables sin OpenAI. (−) el mock no evalúa la calidad del lenguaje natural; se requiere una sesión live controlada para validar el agente real.
 
-## ADR-007 — Neon en lugar de Postgres de Render
+## ADR-007 — Supabase Postgres en lugar de Postgres de Render (reemplaza a Neon)
 
-- **Contexto**: la base de datos free de Render expira a los 30 días; el proyecto dura más y debe conservar datos para la demo y el informe.
-- **Decisión**: PostgreSQL 16 en Neon (free, persistente) con `sslmode=require`; local con `postgres:16-alpine`.
-- **Consecuencias**: (+) persistencia sin costo, *branching* para pruebas y restauración. (−) un proveedor más que configurar; ligera latencia en el primer acceso tras suspensión.
+- **Contexto**: la base de datos free de Render expira a los 30 días; el equipo ya usa Supabase y quiere un único proveedor para BD e imágenes.
+- **Decisión**: PostgreSQL de Supabase vía **Supavisor session pooler** (puerto 5432, compatible IPv4, necesario porque Render free no tiene IPv6 para la conexión directa), `sslmode=require`, `pool_pre_ping` + `pool_recycle=300`. Local opcional con `postgres:16-alpine` (`docker compose --profile localdb`).
+- **Consecuencias**: (+) persistencia gratis, panel SQL para revisar datos. (−) el proyecto free se pausa tras ~1 semana sin actividad: reactivarlo antes de la demo. No usar el transaction pooler (6543) por incompatibilidad con sentencias preparadas.
 
-## ADR-008 — Cloudflare R2 para imágenes
+## ADR-008 — Supabase Storage (API S3) para imágenes (reemplaza a R2)
 
 - **Contexto**: el disco de Render es efímero; las fotos de clientes son datos personales y no deben ser públicas.
-- **Decisión**: almacenamiento S3-compatible en Cloudflare R2 vía `boto3` (`STORAGE_BACKEND=s3`), con prefijo público `products/` y privado `customers/` (URLs prefirmadas de 10 min solo para el admin). Backend `local` para desarrollo.
-- **Consecuencias**: (+) 10 GB gratis sin costo de egreso; privacidad por diseño; código desacoplado por el protocolo `Storage`. (−) configuración de token, CORS y acceso público; si R2 no permite exponer solo un prefijo, se usan dos buckets (registrar aquí).
+- **Decisión**: bucket **privado** en Supabase Storage usado con `boto3` a través de su endpoint compatible S3 (`https://<ref>.supabase.co/storage/v1/s3`, *path-style*, región del proyecto). Solo fotos de clientes y resultados (`customers/`), con URLs prefirmadas de 10 min. El catálogo se sirve desde el backend (`/static/products`). Retención temporal: `PHOTO_RETENTION_DAYS`.
+- **Consecuencias**: (+) mismo proveedor que la BD, 1 GB gratis, sin cambios de código (protocolo `Storage`). (−) claves S3 de Storage con acceso total al proyecto: guardarlas solo como secretos.
 
 ## ADR-009 — n8n opcional
 
@@ -78,6 +78,22 @@
 > - Decisión:
 > - Consecuencias:
 > ```
+
+### Dashboard y DevOps (`feat/ops-dashboard`)
+
+- **Adaptador único de la API admin**: `dashboard/api.py` separa transporte (`fetch_json`), adaptadores puros (`parse_*`) y envoltorios cacheados (`get_*`, `st.cache_data(ttl=30)`). Si la forma de un JSON admin cambia, solo se toca `parse_*`. Los adaptadores aceptan tanto listas planas como `{"items": [...], "total": n}`, convierten dinero string → float y rellenan claves faltantes con valores por defecto.
+- **API caída ≠ dashboard caído**: cada llamada devuelve `ApiResult(data, error)`; las páginas muestran `st.warning` y renderizan con valores vacíos/cero.
+- **Streamlit ≥ 1.50**: se usa el parámetro `width="stretch"` (reemplazo de `use_container_width`, deprecado). Cumple el "1.40+" del handoff.
+- **Tipos de consulta** (página Conversaciones): no hay endpoint específico; se calculan con los eventos `inquiry.created` recientes (`payload.type` / `payload.channel`). Si el backend no incluye `type` en el payload, se muestran como "sin tipo".
+- **Galería de simulaciones**: las imágenes se descargan desde el servidor del dashboard (no desde el navegador), porque en Docker `DASHBOARD_API_URL=http://backend:8000` no es accesible para el navegador y en producción las URLs de R2 son prefirmadas. Rutas relativas (`/media/...`) se resuelven contra `DASHBOARD_API_URL`.
+- **Gasto acumulado vs. por rango**: la página de costos toma el acumulado y el % de presupuesto de `/admin/metrics/summary` (histórico) y los desgloses de `/admin/usage?days=N`.
+- **Umbral de stock bajo en el dashboard**: se resalta `low_stock` de `/api/products` o `stock <= LOW_STOCK_THRESHOLD` (env opcional, default 5).
+- **Contraseña del dashboard**: comparación con `hmac.compare_digest` y estado en `st.session_state`; si `DASHBOARD_PASSWORD` está vacío no se pide.
+- **Tests de páginas**: `dashboard/tests/test_pages_smoke.py` ejecuta cada página con `streamlit.testing.v1.AppTest` con la API caída y con datos de ejemplo según doc 04.
+- **CI**: el job `docker-build` usa matriz (backend/frontend/dashboard) con caché GHA por servicio y depende de todos los jobs de test. El job `dashboard` también ejecuta los tests de `scripts/`.
+- **Deploy**: `render.yaml` con `autoDeploy: false` en los tres servicios; `deploy.yml` dispara los deploy hooks solo si CI terminó en `success` para un `push` a `main` (o manualmente) y omite con aviso los hooks no configurados. El smoke test espera 60 s y sondea `/health` hasta ~5 min (cold start de Render free).
+- **Resumen diario**: `daily-summary.yml` reintenta hasta 8 veces cada 30 s (servicio dormido) y falla de inmediato ante 401/403.
+- **`scripts/check_env.py`**: validación previa a producción solo con stdlib; sale con código 1 si hay errores (secretos por defecto o < 12 caracteres, `AI_MODE=live` sin clave, S3 sin credenciales, webhook sin `PUBLIC_BASE_URL` https, BD local/SQLite). No imprime valores de secretos.
 
 ### Pendientes de decidir (detectados en la documentación)
 
