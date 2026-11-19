@@ -1,2 +1,19 @@
 import type { Product } from '../types'
-export const product: Product = { id: 1, sku: 'DS-SOF-001', slug: 'sofa-oslo', name: 'Sofá Oslo 3 plazas', category: { slug: 'sofas', name: 'Sofás' }, price: '649.00', currency: 'USD', stock: 3, in_stock: true, low_stock: true, dimensions: { width_cm: 210, height_cm: 85, depth_cm: 90 }, colors: ['gris'], material: 'Tela y madera', style: 'nordico', room_types: ['sala'], primary_image: '/media/products/sofa.jpg' }
+export const product: Product = {
+  id: 1,
+  sku: 'DS-SOF-001',
+  slug: 'sofa-oslo',
+  name: 'Sofá Oslo 3 plazas',
+  category: { slug: 'sofas', name: 'Sofás' },
+  price: '649.00',
+  currency: 'USD',
+  stock: 3,
+  in_stock: true,
+  low_stock: true,
+  dimensions: { width_cm: 210, height_cm: 85, depth_cm: 90 },
+  colors: ['gris'],
+  material: 'Tela y madera',
+  style: 'nordico',
+  room_types: ['sala'],
+  primary_image: '/media/products/sofa.jpg',
+}

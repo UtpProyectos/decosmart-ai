@@ -1,7 +1,139 @@
-import { Link } from 'react-router-dom'; import { api } from '../api/client'; import { ErrorState } from '../components/ErrorState'; import { Loading } from '../components/Loading'; import { ProductCard } from '../components/ProductCard'; import { TelegramButton } from '../components/TelegramButton'; import { useApi } from '../hooks/useApi'
-export function Home() { const categories = useApi(api.categories, []); const featured = useApi(() => api.products({ limit: 3 }), []); return <>
-  <section className="hero"><div className="container hero-content"><span className="eyebrow">Diseño funcional · Hogares reales</span><h1>Muebles que encajan con tu espacio</h1><p>Encuentra piezas con medidas claras, stock actualizado y una forma sencilla de imaginarlas en tu hogar.</p><div className="button-row"><Link className="button" to="/catalogo">Ver catálogo</Link><TelegramButton>Hablar con nuestro asistente</TelegramButton></div></div><div className="hero-shape" aria-hidden="true"><span className="lamp" /><span className="sofa" /><span className="table" /></div></section>
-  <section className="section container"><div className="section-heading"><div><span className="eyebrow">Para cada ambiente</span><h2>Explora por categoría</h2></div></div>{categories.loading ? <Loading /> : categories.error ? <ErrorState message={categories.error} onRetry={categories.retry} /> : <div className="category-grid">{categories.data?.map((category, index) => <Link className={`category-tile tile-${index % 3}`} to={`/catalogo/${category.slug}`} key={category.id}><span>{category.name}</span><small>{category.product_count} {category.product_count === 1 ? 'producto' : 'productos'}</small></Link>)}</div>}</section>
-  <section className="section section-muted"><div className="container"><div className="section-heading"><div><span className="eyebrow">Selección DecoSmart</span><h2>Favoritos para empezar</h2></div><Link to="/catalogo">Ver todos</Link></div>{featured.loading ? <Loading /> : featured.error ? <ErrorState message={featured.error} onRetry={featured.retry} /> : <div className="product-grid">{featured.data?.items.map((product) => <ProductCard product={product} key={product.id} />)}</div>}</div></section>
-  <section className="section container simulation-section"><div className="simulation-art" aria-hidden="true"><div className="phone-frame"><span>Tu ambiente</span><div className="room-mini" /></div></div><div><span className="eyebrow">Asistencia visual</span><h2>Simula tu mueble en tu ambiente con IA</h2><p>Elige un producto, abre Telegram y envía una foto de tu espacio. Confirma las medidas y recibe una propuesta visual para ayudarte a decidir.</p><ol><li>Selecciona el mueble.</li><li>Comparte tu foto y medidas.</li><li>Confirma la simulación.</li></ol><p className="disclaimer">La simulación es orientativa: la escala, los colores y acabados pueden variar respecto al producto real.</p><TelegramButton>Comenzar en Telegram</TelegramButton></div></section>
-  </> }
+import { Link } from 'react-router-dom'
+import { api } from '../api/client'
+import { CheckIcon, ImageIcon, SparklesIcon, TelegramIcon } from '../components/icons'
+import { ErrorState } from '../components/ErrorState'
+import { Loading } from '../components/Loading'
+import { ProductCard } from '../components/ProductCard'
+import { TelegramButton } from '../components/TelegramButton'
+import { useApi } from '../hooks/useApi'
+
+export function Home() {
+  const categories = useApi(api.categories, [])
+  const featured = useApi(() => api.products({ limit: 3 }), [])
+  return (
+    <>
+      <section className="hero">
+        <div className="container hero-content">
+          <span className="eyebrow">Diseño para la vida cotidiana</span>
+          <h1>
+            Tu espacio,
+            <br />
+            mejor pensado.
+          </h1>
+          <p>
+            Muebles con medidas claras, stock actualizado y una forma simple de imaginarlos en casa
+            antes de decidir.
+          </p>
+          <div className="button-row">
+            <Link className="button" to="/catalogo">
+              Ver catálogo
+            </Link>
+            <a className="button secondary" href="#simulacion">
+              Simular en mi ambiente
+            </a>
+          </div>
+        </div>
+        <div className="hero-editorial" aria-hidden="true">
+          <span>Forma</span>
+          <span>Función</span>
+          <span>Hogar</span>
+        </div>
+      </section>
+      <section className="section container">
+        <div className="section-heading">
+          <div>
+            <span className="eyebrow">Encuentra tu pieza</span>
+            <h2>Categorías</h2>
+          </div>
+          <Link to="/catalogo">Ver todo →</Link>
+        </div>
+        {categories.loading ? (
+          <Loading />
+        ) : categories.error ? (
+          <ErrorState message={categories.error} onRetry={categories.retry} />
+        ) : (
+          <div className="category-grid">
+            {categories.data?.map((category, index) => (
+              <Link
+                className={`category-tile tile-${index % 3}`}
+                to={`/catalogo/${category.slug}`}
+                key={category.id}
+              >
+                <span>0{index + 1}</span>
+                <strong>{category.name}</strong>
+                <small>
+                  {category.product_count} {category.product_count === 1 ? 'pieza' : 'piezas'}
+                </small>
+              </Link>
+            ))}
+          </div>
+        )}
+      </section>
+      <section className="section section-muted">
+        <div className="container">
+          <div className="section-heading">
+            <div>
+              <span className="eyebrow">Selección DecoSmart</span>
+              <h2>Piezas destacadas</h2>
+            </div>
+            <Link to="/catalogo">Toda la colección →</Link>
+          </div>
+          {featured.loading ? (
+            <Loading />
+          ) : featured.error ? (
+            <ErrorState message={featured.error} onRetry={featured.retry} />
+          ) : (
+            <div className="product-grid">
+              {featured.data?.items.map((product) => (
+                <ProductCard product={product} key={product.id} />
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+      <section className="section simulation-band" id="simulacion">
+        <div className="container">
+          <div className="section-heading">
+            <div>
+              <span className="eyebrow">Visualiza antes de elegir</span>
+              <h2>Cómo funciona la simulación con IA</h2>
+            </div>
+          </div>
+          <div className="steps-grid">
+            <article>
+              <span>
+                <ImageIcon />
+              </span>
+              <small>01</small>
+              <h3>Elige un mueble</h3>
+              <p>Abre la ficha del producto que quieres probar.</p>
+            </article>
+            <article>
+              <span>
+                <TelegramIcon />
+              </span>
+              <small>02</small>
+              <h3>Comparte tu espacio</h3>
+              <p>Envía una foto y las medidas desde Telegram.</p>
+            </article>
+            <article>
+              <span>
+                <SparklesIcon />
+              </span>
+              <small>03</small>
+              <h3>Recibe la propuesta</h3>
+              <p>Confirma y obtén una referencia visual de tu ambiente.</p>
+            </article>
+          </div>
+          <div className="simulation-cta">
+            <div>
+              <CheckIcon />
+              <p>La simulación es orientativa; escala, color y acabados pueden variar.</p>
+            </div>
+            <TelegramButton>Comenzar en Telegram</TelegramButton>
+          </div>
+        </div>
+      </section>
+    </>
+  )
+}

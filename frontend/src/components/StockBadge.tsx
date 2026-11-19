@@ -1,1 +1,7 @@
-export function StockBadge({ inStock, lowStock }: { inStock: boolean; lowStock: boolean }) { return <span className={`stock-badge ${!inStock ? 'out' : lowStock ? 'low' : ''}`}>{!inStock ? 'Agotado' : lowStock ? 'Últimas unidades' : 'En stock'}</span> }
+export function StockBadge({ inStock, lowStock }: { inStock: boolean; lowStock: boolean }) {
+  return (
+    <span className={`stock-badge ${!inStock ? 'out' : lowStock ? 'low' : ''}`}>
+      {!inStock ? 'Agotado' : lowStock ? 'Últimas unidades' : 'En stock'}
+    </span>
+  )
+}

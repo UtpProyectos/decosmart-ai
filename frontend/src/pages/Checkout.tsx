@@ -1,5 +1,94 @@
-import { FormEvent, useState } from 'react'; import { Link, useNavigate, useSearchParams } from 'react-router-dom'; import { api } from '../api/client'; import { useCartStore } from '../store/cart'
-export function Checkout() { const [params] = useSearchParams(); const quoteCode = params.get('quote') || undefined; const items = useCartStore((state) => state.items); const clear = useCartStore((state) => state.clear); const navigate = useNavigate(); const [error, setError] = useState(''); const [submitting, setSubmitting] = useState(false); const canOrder = Boolean(quoteCode || items.length)
-  async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const form = new FormData(event.currentTarget); setSubmitting(true); setError(''); try { const order = await api.createOrder({ quote_code: quoteCode, customer: { name: String(form.get('name')), email: String(form.get('email')), phone: String(form.get('phone')) }, items: quoteCode ? undefined : items.map((item) => ({ product_id: item.productId, quantity: item.quantity })), delivery_address: String(form.get('delivery_address')), channel: 'web' }); if (!quoteCode) clear(); navigate(`/pedido/${order.code}`) } catch (reason) { setError(reason instanceof Error ? reason.message : 'No se pudo registrar el pedido.') } finally { setSubmitting(false) } }
-  if (!canOrder) return <div className="container page"><div className="empty-state"><h1>No hay productos para el pedido</h1><Link className="button" to="/catalogo">Explorar catálogo</Link></div></div>
-  return <div className="container page narrow"><header className="page-header"><span className="eyebrow">Pedido de demostración</span><h1>Datos de contacto y entrega</h1><p>Este registro no procesa pagos ni confirma una venta.</p></header>{quoteCode && <div className="context-note">Usaremos los productos y precios de la cotización <strong>{quoteCode}</strong>.</div>}<form className="form-card" onSubmit={submit}><div className="form-grid"><label className="field"><span>Nombre completo</span><input name="name" autoComplete="name" required /></label><label className="field"><span>Correo electrónico</span><input name="email" type="email" autoComplete="email" required /></label><label className="field"><span>Teléfono</span><input name="phone" type="tel" autoComplete="tel" required /></label><label className="field full-span"><span>Dirección de entrega</span><textarea name="delivery_address" autoComplete="street-address" rows={3} required /></label></div>{error && <p className="form-error" role="alert">{error}</p>}<button className="button full" disabled={submitting}>{submitting ? 'Registrando…' : 'Registrar pedido demo'}</button></form></div> }
+import { FormEvent, useState } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { api } from '../api/client'
+import { useCartStore } from '../store/cart'
+export function Checkout() {
+  const [params] = useSearchParams()
+  const quoteCode = params.get('quote') || undefined
+  const items = useCartStore((state) => state.items)
+  const clear = useCartStore((state) => state.clear)
+  const navigate = useNavigate()
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const canOrder = Boolean(quoteCode || items.length)
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const form = new FormData(event.currentTarget)
+    setSubmitting(true)
+    setError('')
+    try {
+      const order = await api.createOrder({
+        quote_code: quoteCode,
+        customer: {
+          name: String(form.get('name')),
+          email: String(form.get('email')),
+          phone: String(form.get('phone')),
+        },
+        items: quoteCode
+          ? undefined
+          : items.map((item) => ({ product_id: item.productId, quantity: item.quantity })),
+        delivery_address: String(form.get('delivery_address')),
+        channel: 'web',
+      })
+      if (!quoteCode) clear()
+      navigate(`/pedido/${order.code}`)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'No se pudo registrar el pedido.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+  if (!canOrder)
+    return (
+      <div className="container page">
+        <div className="empty-state">
+          <h1>No hay productos para el pedido</h1>
+          <Link className="button" to="/catalogo">
+            Explorar catálogo
+          </Link>
+        </div>
+      </div>
+    )
+  return (
+    <div className="container page narrow">
+      <header className="page-header">
+        <span className="eyebrow">Pedido de demostración</span>
+        <h1>Datos de contacto y entrega</h1>
+        <p>Este registro no procesa pagos ni confirma una venta.</p>
+      </header>
+      {quoteCode && (
+        <div className="context-note">
+          Usaremos los productos y precios de la cotización <strong>{quoteCode}</strong>.
+        </div>
+      )}
+      <form className="form-card" onSubmit={submit}>
+        <div className="form-grid">
+          <label className="field">
+            <span>Nombre completo</span>
+            <input name="name" autoComplete="name" required />
+          </label>
+          <label className="field">
+            <span>Correo electrónico</span>
+            <input name="email" type="email" autoComplete="email" required />
+          </label>
+          <label className="field">
+            <span>Teléfono</span>
+            <input name="phone" type="tel" autoComplete="tel" required />
+          </label>
+          <label className="field full-span">
+            <span>Dirección de entrega</span>
+            <textarea name="delivery_address" autoComplete="street-address" rows={3} required />
+          </label>
+        </div>
+        {error && (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        )}
+        <button className="button full" disabled={submitting}>
+          {submitting ? 'Registrando…' : 'Registrar pedido demo'}
+        </button>
+      </form>
+    </div>
+  )
+}
