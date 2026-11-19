@@ -216,7 +216,11 @@ def parse_top_products(raw: Any) -> list[dict[str, Any]]:
 def _breakdown(raw: Any, label: str) -> list[dict[str, Any]]:
     items, _ = as_items(raw)
     return [
-        {label: str(i.get(label) or "desconocido"), "cost_usd": to_float(i.get("cost_usd")), "calls": to_int(i.get("calls"))}
+        {
+            label: str(i.get(label) or "desconocido"),
+            "cost_usd": to_float(i.get("cost_usd")),
+            "calls": to_int(i.get("calls")),
+        }
         for i in items
     ]
 

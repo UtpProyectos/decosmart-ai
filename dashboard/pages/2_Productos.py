@@ -35,7 +35,9 @@ def bar(rows: list[dict], color: str, title: str) -> go.Figure:
 left, right = st.columns(2)
 with left:
     if inquired_res.data:
-        st.plotly_chart(bar(inquired_res.data, ui.SLATE, "Más consultados (consultas)"), config={"displayModeBar": False})
+        st.plotly_chart(
+            bar(inquired_res.data, ui.SLATE, "Más consultados (consultas)"), config={"displayModeBar": False}
+        )
     else:
         ui.empty_state("Sin consultas todavía.")
 with right:

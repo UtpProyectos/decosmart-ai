@@ -111,7 +111,9 @@ jobs:
           cache: pip
           cache-dependency-path: dashboard/requirements.txt
       - name: Instalar dependencias
-        run: pip install -r dashboard/requirements.txt pytest
+        run: pip install -r dashboard/requirements.txt pytest ruff
+      - name: Ruff
+        run: ruff check --config dashboard/pyproject.toml dashboard scripts
       - name: Compilar todos los .py
         run: python -m py_compile $(find dashboard scripts -name "*.py" -not -path "*/.venv/*")
       - name: Pytest (dashboard + scripts)

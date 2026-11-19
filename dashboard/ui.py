@@ -34,7 +34,8 @@ SERIES_LABELS = {
 
 DEFINITIONS_MD = """
 - **Conversación**: sesión de chat de un cliente en Telegram (nueva si pasan >6 h sin actividad o cambia el día).
-- **Consulta**: pregunta concreta sobre un producto o categoría (precio, medidas, stock, recomendación). Incluye vistas de detalle en la web.
+- **Consulta**: pregunta concreta sobre un producto o categoría (precio, medidas, stock, recomendación).
+  Incluye vistas de detalle en la web.
 - **Cotización**: documento con productos, cantidades y precios congelados, con fecha de validez.
 - **Pedido demo**: intención de compra registrada. **No es una venta**: no hay pago.
 - **Venta concretada**: pedido marcado como `completed` por un administrador (entregado/pagado fuera del sistema).
