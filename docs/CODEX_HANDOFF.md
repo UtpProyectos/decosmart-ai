@@ -11,7 +11,7 @@
 1. **Tienda web** React: catálogo de 6 muebles, detalle, carrito (localStorage), cotización, pedido demo, botón Telegram.
 2. **Backend** FastAPI: API pública + admin, BD PostgreSQL, bot de Telegram integrado, agente IA con herramientas, simulador de imágenes, automatizaciones, control de presupuesto.
 3. **Dashboard** Streamlit: KPIs consumiendo `/admin/*`.
-4. **DevOps**: Docker Compose local, GitHub Actions (CI + deploy), Render (prod), Neon (Postgres), Cloudflare R2 (imágenes).
+4. **DevOps**: Docker Compose local, GitHub Actions (CI + deploy), Render (prod), Supabase Postgres (BD), Supabase Storage (imágenes, API S3).
 
 Clasificación:
 - **Implementable (MVP)**: todo lo de este documento salvo lo marcado.
@@ -72,7 +72,7 @@ decosmart-ai/
 │   │   ├── storage/
 │   │   │   ├── base.py        # Storage protocol: put(key, bytes, content_type), get(key), url(key, public), delete(key)
 │   │   │   ├── local.py
-│   │   │   └── s3.py          # boto3, compatible R2
+│   │   │   └── s3.py          # boto3, compatible S3 (Supabase Storage)
 │   │   ├── imaging/
 │   │   │   └── pipeline.py    # optimize_input(), optimize_output(), sha256
 │   │   ├── ai/
@@ -157,7 +157,8 @@ FRONTEND_ORIGIN=http://localhost:5173
 PUBLIC_BASE_URL=http://localhost:8000   # URL pública del backend (para webhook y media)
 
 # --- Base de datos ---
-DATABASE_URL=postgresql+psycopg://decosmart:decosmart@db:5432/decosmart
+# Supabase (session pooler, puerto 5432, IPv4). Local opcional: postgresql+psycopg://decosmart:decosmart@db:5432/decosmart (--profile localdb)
+DATABASE_URL=postgresql+psycopg://postgres.<PROJECT_REF>:<PASSWORD>@aws-0-<REGION>.pooler.supabase.com:5432/postgres?sslmode=require
 AUTO_MIGRATE=true                   # alembic upgrade head al iniciar
 AUTO_SEED=true                      # seed idempotente al iniciar si no hay productos
 
@@ -200,12 +201,12 @@ STORE_FULL_OUTPUT=false
 # --- Storage ---
 STORAGE_BACKEND=local               # local | s3
 LOCAL_STORAGE_PATH=/app/storage
-S3_ENDPOINT_URL=                    # https://<account>.r2.cloudflarestorage.com
+S3_ENDPOINT_URL=                    # https://<PROJECT_REF>.supabase.co/storage/v1/s3
 S3_BUCKET=decosmart
 S3_ACCESS_KEY_ID=
 S3_SECRET_ACCESS_KEY=
-S3_REGION=auto
-S3_PUBLIC_BASE_URL=                 # URL pública del bucket (solo para imágenes de catálogo)
+S3_REGION=us-east-1                 # región del proyecto Supabase
+S3_PUBLIC_BASE_URL=                 # sin uso (bucket privado; catálogo servido en /static/products)
 
 # --- Telegram ---
 TELEGRAM_BOT_TOKEN=
@@ -397,8 +398,8 @@ Scheduler (APScheduler `BackgroundScheduler`, si `SCHEDULER_ENABLED`): resumen d
 ## 6. Docker, CI/CD y Render
 
 ### docker-compose.yml (local)
-- `db`: postgres:16-alpine, volumen `pgdata`, healthcheck `pg_isready`.
-- `backend`: build `./backend`, `env_file: .env`, depende de `db` healthy, puerto 8000, volumen `./backend/storage:/app/storage`.
+- `db` (opcional, `profiles: ["localdb"]`): postgres:16-alpine, volumen `pgdata`, healthcheck `pg_isready`. Solo con `docker compose --profile localdb up`; por defecto se usa Supabase vía `DATABASE_URL` de `.env`.
+- `backend`: build `./backend`, `env_file: .env`, puerto 8000, volumen `./backend/storage:/app/storage`.
 - `frontend`: build `./frontend` con args `VITE_API_URL`, `VITE_TELEGRAM_BOT_URL`; puerto `5173:80`.
 - `dashboard`: build `./dashboard`, puerto 8501, `DASHBOARD_API_URL=http://backend:8000`.
 
@@ -416,8 +417,8 @@ Scheduler (APScheduler `BackgroundScheduler`, si `SCHEDULER_ENABLED`): resumen d
 - `decosmart-api`: web, runtime docker, `rootDir: backend`, plan free, healthCheckPath `/health`, envVars (sync: false para secretos), `TELEGRAM_MODE=webhook`, `STORAGE_BACKEND=s3`.
 - `decosmart-web`: static site, `rootDir: frontend`, build `npm ci && npm run build`, publish `dist`, rewrite `/* → /index.html`.
 - `decosmart-dashboard`: web, docker, `rootDir: dashboard`.
-- Base de datos: **Neon** (free, persistente) → `DATABASE_URL` con `sslmode=require`. No usar Postgres free de Render (expira a los 30 días).
-- Imágenes: **Cloudflare R2** (10 GB gratis) solo para fotos de clientes y resultados de simulación (`customers/`, privado, URLs prefirmadas). Las imágenes de **catálogo** viajan en el repo (`backend/seed/images`) dentro de la imagen Docker y se sirven en `GET /static/products/<archivo>` (ya implementado en el esqueleto); `products.reference_image_key` es la ruta relativa `seed/images/<archivo>`. El frontend antepone `VITE_API_URL` a URLs relativas.
+- Base de datos: **Supabase Postgres** (free, persistente, 500 MB) vía **session pooler** (puerto 5432, compatible IPv4; Render free no tiene IPv6 para la conexión directa) → `DATABASE_URL=postgresql+psycopg://postgres.<PROJECT_REF>:<PASSWORD>@aws-0-<REGION>.pooler.supabase.com:5432/postgres?sslmode=require` (contraseña URL-encoded). No usar el transaction pooler (6543). SQLAlchemy con `pool_pre_ping` y `pool_recycle=300`. El proyecto free se pausa tras ~1 semana sin actividad: reactivarlo antes de la demo. No usar Postgres free de Render (expira a los 30 días). Local opcional: `docker compose --profile localdb up`.
+- Imágenes: **Supabase Storage** (1 GB gratis; bucket **privado** `decosmart`, endpoint S3 `https://<PROJECT_REF>.supabase.co/storage/v1/s3`, boto3 con *path-style* y SigV4, claves S3 solo en el backend) solo para fotos de clientes y resultados de simulación (`customers/`, privado, URLs prefirmadas). Las imágenes de **catálogo** viajan en el repo (`backend/seed/images`) dentro de la imagen Docker y se sirven en `GET /static/products/<archivo>` (ya implementado en el esqueleto); `products.reference_image_key` es la ruta relativa `seed/images/<archivo>`. El frontend antepone `VITE_API_URL` a URLs relativas.
 - Nada se escribe en el disco de Render (efímero).
 
 ---
@@ -443,7 +444,7 @@ Scheduler (APScheduler `BackgroundScheduler`, si `SCHEDULER_ENABLED`): resumen d
 - **Automatización**: crear cotización por Telegram envía el mensaje con código y total; pedido nuevo notifica al admin; confirmar pedido que deja stock ≤5 emite `product.low_stock`; endpoint de resumen envía mensaje.
 - **Dashboard**: muestra los 11 indicadores pedidos con datos reales; distingue consultas/cotizaciones/pedidos/ventas.
 - **Presupuesto**: con `BUDGET_USD_LIMIT=0.001` en live, cualquier simulación queda `blocked_quota` sin llamar a OpenAI (test con provider espía).
-- **DevOps**: `docker compose up --build` levanta los 4 servicios; CI verde; deploy en Render responde `/health` con `db: ok`.
+- **DevOps**: `docker compose up --build` levanta los servicios (BD en Supabase; con `--profile localdb`, también Postgres local); CI verde; deploy en Render responde `/health` con `db: ok`.
 
 ---
 

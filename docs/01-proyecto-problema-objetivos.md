@@ -16,7 +16,7 @@ DECOSMART AI es un prototipo funcional de comercio electrónico para una tienda 
 2. **Automatización de procesos comerciales**: bot de atención, eventos de negocio, notificaciones automáticas al cliente y al administrador, alertas de stock bajo, expiración de cotizaciones y resumen diario; integración opcional con n8n.
 3. **Contenedores y CI/CD**: todos los servicios se empaquetan con Docker, se validan con GitHub Actions y se despliegan en Render.
 
-El sistema se compone de una tienda web (React + Vite), un backend (FastAPI + PostgreSQL) que aloja la API, el bot y el agente, un dashboard de indicadores (Streamlit) y almacenamiento de imágenes en Cloudflare R2. Opera con un presupuesto de API de **US$ 4** (límite operativo US$ 3.50 + reserva US$ 0.50), controlado por una guardia de presupuesto en el backend.
+El sistema se compone de una tienda web (React + Vite), un backend (FastAPI + PostgreSQL) que aloja la API, el bot y el agente, un dashboard de indicadores (Streamlit) y almacenamiento de imágenes en Supabase Storage (bucket privado, API S3). Opera con un presupuesto de API de **US$ 4** (límite operativo US$ 3.50 + reserva US$ 0.50), controlado por una guardia de presupuesto en el backend.
 
 ## 3. Planteamiento del problema
 
@@ -72,12 +72,12 @@ Se descartan explícitamente AR/VR e IoT: requieren hardware o SDKs nativos que 
 | Estado carrito | zustand + localStorage | Mínimo código, persistencia sin login. | Redux (exceso). |
 | Backend | FastAPI (Python 3.11) | OpenAPI automático en `/docs`, Pydantic v2, SDK oficial de OpenAI en Python. | Node/Express (el equipo de IA trabaja en Python). |
 | ORM | SQLAlchemy 2.0 **síncrono** + Alembic | Simplicidad, tests con SQLite, migraciones versionadas. | SQLAlchemy async (complejidad sin beneficio a esta escala). |
-| BD | PostgreSQL 16 (Neon en prod) | Relacional, JSON, free tier persistente. | Postgres free de Render (expira a los 30 días). |
+| BD | PostgreSQL (Supabase en prod, vía session pooler) | Relacional, JSON, free tier persistente (500 MB), mismo proveedor que el storage. | Postgres free de Render (expira a los 30 días). |
 | Bot | Cliente propio con `httpx` sobre Bot API | Un solo modelo de ejecución (webhook o polling), tests con `respx`. | `python-telegram-bot` (bucle propio, difícil de testear dentro de FastAPI). |
 | IA texto | Responses API, `gpt-5.4-nano` | Function calling nativo, US$ 0.20 / 1.25 por 1M tokens. | Frameworks de agentes (LangChain, CrewAI): dependencia pesada para ~80 líneas. |
 | IA imagen | `gpt-image-1-mini`, `low`, 1024×1024 | ≈ US$ 0.005/imagen (tabla oficial), el más barato con edición. | `gpt-image-1` low (≈ US$ 0.011, 2× más caro). |
 | Imágenes | Pillow | Redimensionado, EXIF, compresión. | — |
-| Storage | Cloudflare R2 (S3-compatible, boto3) | 10 GB gratis, sin costo de egreso; disco de Render es efímero. | Disco local en Render (se pierde). |
+| Storage | Supabase Storage (API S3-compatible, boto3) | 1 GB gratis, bucket privado, mismo proveedor que la BD; disco de Render es efímero. | Disco local en Render (se pierde). |
 | Scheduler | APScheduler + cron de GitHub Actions | En proceso, sin infraestructura extra; GitHub cron como respaldo cuando Render duerme. | Celery/Redis (infraestructura adicional). |
 | Dashboard | Streamlit | KPIs en pocas líneas de Python. | Panel React propio (más tiempo). |
 | Contenedores | Docker + Compose | Paridad local/producción. | — |
@@ -96,7 +96,7 @@ Se descartan explícitamente AR/VR e IoT: requieren hardware o SDKs nativos que 
 - Automatización: eventos, notificaciones al cliente y admin, stock bajo, expiración de cotizaciones, limpieza de fotos, resumen diario.
 - Dashboard Streamlit (6 páginas) con KPIs y costos.
 - `AI_MODE=mock` completo para desarrollo, tests y contingencia.
-- Docker Compose, CI/CD en GitHub Actions, despliegue en Render + Neon + R2.
+- Docker Compose, CI/CD en GitHub Actions, despliegue en Render + Supabase (Postgres + Storage).
 
 ### 6.2 Experimental
 

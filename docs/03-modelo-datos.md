@@ -1,6 +1,6 @@
 # 03 — Modelo de datos (ERD y diseño de tablas)
 
-> Entregables 8 y 9. Motor: PostgreSQL 16 (prod: Neon; local: contenedor `postgres:16-alpine`).
+> Entregables 8 y 9. Motor: PostgreSQL (prod: Supabase Postgres vía session pooler; local opcional: contenedor `postgres:16-alpine` con `--profile localdb`).
 > ORM: SQLAlchemy 2.0 (estilo `Mapped[...]`), migraciones con Alembic. Tests: SQLite en memoria con los mismos modelos (evitar tipos exclusivos de Postgres salvo `JSON`, que SQLAlchemy mapea en ambos).
 
 ## Conceptos que NO deben confundirse

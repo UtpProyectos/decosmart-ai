@@ -19,8 +19,8 @@
 | Secreto del webhook | `TELEGRAM_WEBHOOK_SECRET` | Ídem | Cadena aleatoria ≥ 32 caracteres (`python -c "import secrets;print(secrets.token_urlsafe(32))"`). |
 | Clave admin | `ADMIN_API_KEY` / `DASHBOARD_ADMIN_KEY` | Backend y dashboard (mismo valor) | ≥ 32 caracteres; nunca en el frontend. |
 | Contraseña dashboard | `DASHBOARD_PASSWORD` | Dashboard | Obligatoria en producción. |
-| BD | `DATABASE_URL` | Render / GitHub Secrets (job Postgres usa credenciales efímeras) | Neon con `sslmode=require`. |
-| R2 | `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | Render | Token R2 con permiso solo sobre el bucket `decosmart`. |
+| BD | `DATABASE_URL` | Render / GitHub Secrets (job Postgres usa credenciales efímeras) | Supabase Postgres vía session pooler con `sslmode=require`; contraseña URL-encoded. |
+| Supabase Storage | `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | Render / `.env` local | Claves S3 de Supabase Storage: dan acceso total al Storage del proyecto e **ignoran RLS**, por eso viven solo en el backend y **nunca** llegan al frontend ni al repo. Rotar si se filtran. |
 | Deploy hooks | `RENDER_DEPLOY_HOOK_*` | GitHub Secrets | Quien tiene la URL puede desplegar: tratar como secreto. |
 
 Reglas:
@@ -38,7 +38,7 @@ Reglas:
 | `/admin/*` | Header `X-Admin-Key` igual a `ADMIN_API_KEY`, comparación en tiempo constante (`hmac.compare_digest`) | 401 `UNAUTHORIZED` |
 | `/telegram/webhook/{secret}` | Secreto en la ruta **y** header `X-Telegram-Bot-Api-Secret-Token` (configurado con `secret_token` en `setWebhook`) | 403 |
 | `/media/*` | Solo existe con `STORAGE_BACKEND=local` | — |
-| Fotos de clientes en R2 | Prefijo privado `customers/`; URL prefirmada de 10 min solo para el admin (`/admin/simulations`) | Acceso denegado por R2 |
+| Fotos de clientes en Supabase Storage | Bucket **privado** `decosmart`, prefijo `customers/`; URL prefirmada de 10 min solo para el admin (`/admin/simulations`) | Acceso denegado por Supabase Storage |
 | Dashboard | `DASHBOARD_PASSWORD` antes de renderizar | No muestra datos |
 | Notificaciones admin | Solo a `ADMIN_TELEGRAM_CHAT_ID` | — |
 
@@ -111,7 +111,7 @@ No se piden documentos de identidad, tarjetas ni contraseñas (regla 8 del promp
 ### 7.3 Medidas
 - **Consentimiento de foto**: mensaje `photo_consent` antes de la primera foto; se registra `customers.photo_consent_at`. Sin consentimiento no se acepta foto.
 - **Retención**: job diario y `POST /admin/jobs/cleanup-photos` borran `customers/<cid>/inputs/*` y `outputs/*` más antiguos que `PHOTO_RETENTION_DAYS`.
-- **Almacenamiento privado**: fotos de clientes en prefijo `customers/` no público; solo el admin accede por URL prefirmada de 10 minutos. Las imágenes de catálogo (`products/`) sí son públicas.
+- **Almacenamiento privado**: fotos de clientes en el bucket **privado** `decosmart` de Supabase Storage (prefijo `customers/`); solo el admin accede por URL prefirmada de 10 minutos. Las imágenes de catálogo no están en el storage: viajan en el repo y el backend las sirve en `/static/products`. No se configuran políticas RLS de Supabase porque el acceso es solo del backend con claves S3 del lado del servidor (que ignoran RLS); el frontend nunca habla con Supabase directamente.
 - **Minimización**: EXIF eliminado; `STORE_FULL_OUTPUT=false` (no se guarda la imagen original del modelo); `error_logs.context` sin datos personales.
 - **Logs sin PII**: los logs de aplicación usan `customer_id` interno, nunca teléfono, email ni dirección.
 - **Derecho de supresión**: a solicitud del cliente, el admin borra sus fotos (`cleanup-photos` o borrado del prefijo `customers/<cid>/`) y anonimiza sus datos de contacto en la BD. *Implementable (MVP)* como procedimiento manual documentado; endpoint dedicado `DELETE /admin/customers/{id}` es **Futuro**.
@@ -156,7 +156,7 @@ Marcar cada ítem con evidencia (captura o salida de comando) para el informe.
 - [ ] Foto con EXIF GPS → el archivo guardado en `customers/<cid>/inputs/` no tiene EXIF (`exiftool` o Pillow `getexif()` vacío).
 - [ ] Foto de 200×200 px → rechazada; archivo de texto renombrado `.jpg` → rechazado; archivo > 10 MB → rechazado.
 - [ ] Sin pulsar *Acepto* no se acepta ninguna foto.
-- [ ] La URL de una foto de cliente en R2 sin firma devuelve acceso denegado; la prefirmada expira a los 10 min.
+- [ ] La URL de una foto de cliente en Supabase Storage sin firma devuelve acceso denegado; la prefirmada expira a los 10 min.
 - [ ] `POST /admin/jobs/cleanup-photos` elimina fotos con antigüedad > `PHOTO_RETENTION_DAYS` (probar con valor 0).
 - [ ] Preguntas de prompt injection del set (17–20, doc 09) no cambian precios ni revelan el prompt.
 - [ ] `get_request_status` con un código de otro cliente → "no encontrado".

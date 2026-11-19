@@ -17,12 +17,14 @@ Buenas prácticas: `.dockerignore` en cada carpeta (excluir `node_modules`, `.ve
 
 | Servicio | Imagen/Build | Puertos | Dependencias | Volúmenes | Variables |
 |---|---|---|---|---|---|
-| `db` | `postgres:16-alpine` | (interno; opcional `5432:5432` para depurar) | — | `pgdata:/var/lib/postgresql/data` | `POSTGRES_USER/PASSWORD/DB=decosmart`; healthcheck `pg_isready` |
-| `backend` | `./backend` | `8000:8000` | `db` (condition: `service_healthy`) | `./backend/storage:/app/storage` | `env_file: .env` |
+| `db` (opcional, perfil `localdb`) | `postgres:16-alpine` | `5432:5432` | — | `pgdata:/var/lib/postgresql/data` | `POSTGRES_USER/PASSWORD/DB=decosmart`; healthcheck `pg_isready` |
+| `backend` | `./backend` | `8000:8000` | — (usa `DATABASE_URL` de `.env`: Supabase por defecto) | `./backend/storage:/app/storage` | `env_file: .env` |
 | `frontend` | `./frontend` (args `VITE_API_URL`, `VITE_TELEGRAM_BOT_URL`) | `5173:80` | `backend` | — | — |
 | `dashboard` | `./dashboard` | `8501:8501` | `backend` | — | `DASHBOARD_API_URL=http://backend:8000`, `DASHBOARD_ADMIN_KEY`, `DASHBOARD_PASSWORD` |
 
-Volúmenes: `pgdata` (named volume, persiste la BD entre reinicios; `docker compose down -v` la borra) y bind mount `./backend/storage` (fotos y resultados locales; está en `.gitignore`).
+Por defecto el backend se conecta a Supabase con el `DATABASE_URL` de `.env`; el servicio `db` solo se levanta con `docker compose --profile localdb up` (entonces `DATABASE_URL=postgresql+psycopg://decosmart:decosmart@db:5432/decosmart`).
+
+Volúmenes: `pgdata` (named volume del perfil `localdb`, persiste la BD local entre reinicios; `docker compose down -v` la borra) y bind mount `./backend/storage` (fotos y resultados locales; está en `.gitignore`).
 
 ## 2. Runbook local (Windows + Docker Desktop)
 
@@ -37,10 +39,11 @@ Requisitos: Windows 10/11, Docker Desktop con WSL 2, Git, (opcional) Python 3.11
    ```powershell
    Copy-Item .env.example .env
    ```
-   Dejar `AI_MODE=mock`, `TELEGRAM_MODE=polling`, `STORAGE_BACKEND=local`. Para probar el bot, poner `TELEGRAM_BOT_TOKEN` de un **bot de desarrollo** (distinto al de producción: un token no puede tener polling y webhook a la vez) y `ADMIN_TELEGRAM_CHAT_ID` (§6.3).
+   Completar `DATABASE_URL` con la cadena del session pooler de Supabase (§5; se recomienda un proyecto Supabase de desarrollo distinto al de producción) **o** usar Postgres local (`DATABASE_URL=postgresql+psycopg://decosmart:decosmart@db:5432/decosmart`). Dejar `AI_MODE=mock`, `TELEGRAM_MODE=polling`, `STORAGE_BACKEND=local`. Para probar el bot, poner `TELEGRAM_BOT_TOKEN` de un **bot de desarrollo** (distinto al de producción: un token no puede tener polling y webhook a la vez) y `ADMIN_TELEGRAM_CHAT_ID` (§6.3).
 3. Levantar:
    ```powershell
-   docker compose up --build
+   docker compose up --build                      # BD en Supabase (DATABASE_URL de .env)
+   docker compose --profile localdb up --build    # alternativa: Postgres local en contenedor
    ```
 4. Verificar:
    - API: http://localhost:8000/health → `{"status":"ok","db":"ok",...}` y http://localhost:8000/docs
@@ -54,7 +57,7 @@ Requisitos: Windows 10/11, Docker Desktop con WSL 2, Git, (opcional) Python 3.11
    cd ..\frontend; npm ci; npm run lint; npm test; npm run build
    ```
 7. Probar IA real (solo sesiones controladas, doc 07 §7): `AI_MODE=live` y `OPENAI_API_KEY` en `.env`, luego `docker compose up -d --force-recreate backend`.
-8. Reiniciar BD desde cero: `docker compose down -v; docker compose up --build`.
+8. Reiniciar la BD local desde cero (perfil `localdb`): `docker compose --profile localdb down -v; docker compose --profile localdb up --build`. Con Supabase no se borra la base: usar el *SQL Editor* o un proyecto de desarrollo aparte.
 
 Problemas frecuentes: puerto ocupado (cambiar el mapeo en compose); finales de línea CRLF en scripts `.sh` (configurar `git config core.autocrlf input` o `.gitattributes`); Docker Desktop sin WSL 2 activo.
 
@@ -112,14 +115,14 @@ Nota: si el resumen diario lo envían tanto APScheduler como el cron de GitHub, 
 | Variable | `decosmart-api` | `decosmart-web` | `decosmart-dashboard` |
 |---|---|---|---|
 | `APP_ENV` | `production` | — | — |
-| `DATABASE_URL` | Neon, `postgresql+psycopg://…?sslmode=require` | — | — |
+| `DATABASE_URL` | Supabase session pooler, `postgresql+psycopg://postgres.<ref>:…@aws-0-<region>.pooler.supabase.com:5432/postgres?sslmode=require` | — | — |
 | `AUTO_MIGRATE` / `AUTO_SEED` | `true` / `true` | — | — |
 | `ADMIN_API_KEY` | secreto | — | — |
 | `FRONTEND_ORIGIN` | `https://decosmart-web.onrender.com` | — | — |
 | `PUBLIC_BASE_URL` | `https://decosmart-api.onrender.com` | — | — |
 | `AI_MODE`, `OPENAI_API_KEY`, `OPENAI_*`, `IMAGE_*` | según doc 07 | — | — |
 | `BUDGET_USD_LIMIT` y cuotas | `3.50`, `2`, `15`, `40` | — | — |
-| `STORAGE_BACKEND` y `S3_*` | `s3` + credenciales R2 | — | — |
+| `STORAGE_BACKEND` y `S3_*` | `s3` + endpoint y claves S3 de Supabase Storage (§5) | — | — |
 | `TELEGRAM_*`, `ADMIN_TELEGRAM_CHAT_ID` | `TELEGRAM_MODE=webhook` + token + secreto | — | — |
 | `SCHEDULER_ENABLED`, `TIMEZONE`, `DAILY_SUMMARY_HOUR` | `true`, `America/Lima`, `20` | — | — |
 | `N8N_WEBHOOK_URL` | opcional | — | — |
@@ -130,27 +133,55 @@ Nota: si el resumen diario lo envían tanto APScheduler como el cron de GitHub, 
 - Los web services free se suspenden tras ~15 min sin tráfico y tardan ~30–60 s en despertar.
 - **Webhook de Telegram**: el primer update tras la inactividad despierta el servicio; si Telegram no recibe respuesta a tiempo, **reintenta** la entrega, y la idempotencia por `update_id` evita duplicados. El usuario percibe solo una demora en la primera respuesta.
 - **Scheduler**: APScheduler no corre mientras el servicio duerme; por eso `daily-summary.yml` llama al endpoint (y lo despierta). Expiración de cotizaciones y limpieza de fotos se ejecutan al despertar si estaban pendientes (el job compara fechas, no depende de la hora exacta).
-- **Disco efímero**: nada se escribe localmente; imágenes en R2 y datos en Neon.
+- **Disco efímero**: nada se escribe localmente; fotos en Supabase Storage y datos en Supabase Postgres.
+- **Supabase free se pausa**: el proyecto se pausa tras ~1 semana sin actividad; reactivarlo desde el panel (*Restore project*) antes de la demo (doc 14).
 - **Antes de la demo**: abrir `/health` de API y dashboard 2–3 minutos antes (doc 14).
 
-## 5. Neon (PostgreSQL)
+## 5. Configurar Supabase (PostgreSQL + Storage)
 
-1. Crear cuenta en neon.tech → *New Project* "decosmart", PostgreSQL 16, región más cercana (p. ej. `aws-us-east-1`, coherente con Render US East/Ohio).
-2. Crear base `decosmart` y rol de aplicación.
-3. Copiar la cadena de conexión y adaptarla al driver: `postgresql+psycopg://<user>:<pass>@<host>/decosmart?sslmode=require`.
-4. Guardarla como `DATABASE_URL` en `decosmart-api`. Las migraciones corren al iniciar (`AUTO_MIGRATE=true`).
-5. Opcional: crear un *branch* de Neon para pruebas destructivas sin tocar la base principal.
-6. Neon suspende el cómputo por inactividad; la primera consulta tarda ~1 s extra (aceptable).
+> Supabase reemplaza a las alternativas usadas antes (Neon para la BD y Cloudflare R2 para imágenes); ver ADR-007 y ADR-008 en [`DECISIONES.md`](DECISIONES.md).
+
+### 5.1 Crear el proyecto
+1. Crear cuenta en supabase.com → *New project* "decosmart".
+2. Elegir la región más cercana a Render (p. ej. *East US (North Virginia)* = `us-east-1`, coherente con Render US East/Ohio). Anotar la región: se usa en el host del pooler y en `S3_REGION`.
+3. Definir una contraseña fuerte de BD y guardarla en el gestor de contraseñas del equipo. Anotar el *Project Ref* (aparece en la URL del panel y en *Project Settings → General*).
+
+### 5.2 Cadena de conexión (session pooler)
+1. *Connect* (o *Project Settings → Database → Connection string*) → **Session pooler** (puerto **5432**, compatible IPv4). La conexión directa (`db.<ref>.supabase.co`) es solo IPv6 y **no funciona en Render free**; el **transaction pooler (6543) no se usa** (incompatible con sentencias preparadas).
+2. Adaptar la cadena al driver manteniendo el prefijo `postgresql+psycopg://`:
+   `postgresql+psycopg://postgres.<PROJECT_REF>:<PASSWORD>@aws-0-<REGION>.pooler.supabase.com:5432/postgres?sslmode=require`
+3. Si la contraseña tiene caracteres especiales (`@`, `:`, `/`, `#`, `%`…), codificarla en URL: `python -c "import urllib.parse;print(urllib.parse.quote('<pass>', safe=''))"`.
+4. SQLAlchemy usa `pool_pre_ping=True` y `pool_recycle=300` para tolerar conexiones cerradas por el pooler. Las migraciones corren al iniciar (`AUTO_MIGRATE=true`).
+5. Límites free: 500 MB de BD; el proyecto **se pausa tras ~1 semana sin actividad** → reactivarlo (*Restore project*) antes de la demo (doc 14 §3).
+
+### 5.3 Bucket privado en Storage
+1. *Storage → New bucket* → nombre `decosmart` (variable `S3_BUCKET`), con *Public bucket* **desactivado** (privado).
+2. Solo se guardan fotos de clientes y resultados de simulación bajo `customers/` (almacenamiento temporal: el job de limpieza los borra tras `PHOTO_RETENTION_DAYS`). Las imágenes de **catálogo no van al storage**: viajan en el repo (`backend/seed/images`) y el backend las sirve en `/static/products`.
+3. No se crean políticas RLS: solo el backend accede, con claves S3 (que ignoran RLS). El admin/dashboard ve las fotos con URLs prefirmadas GET de 10 min. Límite free: 1 GB.
+
+### 5.4 Claves de acceso S3
+1. *Storage → S3 Connection* → confirmar que la conexión S3 está habilitada y copiar el **Endpoint** (`https://<PROJECT_REF>.supabase.co/storage/v1/s3`) y la **Region**.
+2. *New access key* → descripción "decosmart-api" → copiar `Access key ID` y `Secret access key` (el secreto se muestra una sola vez).
+3. Estas claves dan acceso total al Storage del proyecto e ignoran RLS: tratarlas como secretos, solo en el backend, nunca en el frontend ni en el repo (doc 06 §2).
+4. boto3 se configura con *path-style addressing* y firma SigV4 (sin cambios de código: protocolo `Storage`, backend `s3`).
+
+### 5.5 Variables de entorno (`.env` y Render)
+
+| Variable | Valor |
+|---|---|
+| `DATABASE_URL` | Cadena del session pooler (§5.2) |
+| `STORAGE_BACKEND` | `s3` (en local puede quedar `local`) |
+| `S3_ENDPOINT_URL` | `https://<PROJECT_REF>.supabase.co/storage/v1/s3` |
+| `S3_BUCKET` | `decosmart` |
+| `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | Claves de §5.4 |
+| `S3_REGION` | Región del proyecto (p. ej. `us-east-1`) |
+| `S3_PUBLIC_BASE_URL` | Vacía (no se usa: el bucket es privado) |
+
+1. Local: completar estas variables en `.env` (no versionado) y ejecutar `docker compose up --build`.
+2. Render: `decosmart-api` → *Environment* → cargar las mismas variables (`sync: false` en `render.yaml`) → *Save* (redeploy automático).
+3. Verificar `GET /health` → `db: ok` y, tras una simulación de prueba, que el objeto aparece en *Storage → decosmart → customers/*.
 
 ## 6. Servicios externos
-
-### 6.1 Cloudflare R2
-1. Cloudflare → R2 → *Create bucket* `decosmart` (variable `S3_BUCKET`).
-2. Acceso público **solo** para catálogo: habilitar el dominio público `r2.dev` (o dominio propio) y servir únicamente claves bajo `products/`. Las fotos de clientes viven en `customers/` y se acceden con URL prefirmada. Si la configuración de R2 no permite restringir por prefijo, usar **dos buckets** (`decosmart-public` y `decosmart-private`) y registrar la decisión en `DECISIONES.md`.
-3. *Manage R2 API Tokens* → token con permiso *Object Read & Write* limitado al bucket → `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`.
-4. `S3_ENDPOINT_URL=https://<account_id>.r2.cloudflarestorage.com`, `S3_REGION=auto`, `S3_PUBLIC_BASE_URL=https://pub-<id>.r2.dev`.
-5. CORS del bucket: `GET` desde el origen del frontend (`https://decosmart-web.onrender.com`) y `http://localhost:5173`.
-6. El seed sube las imágenes de `backend/seed/images/` a `products/` si `STORAGE_BACKEND=s3`.
 
 ### 6.2 OpenAI
 1. platform.openai.com → crear proyecto "decosmart-ai".
@@ -213,21 +244,21 @@ Pasos: crear Webhook node (método POST, *Respond immediately*), Switch sobre `{
 | Situación | Acción |
 |---|---|
 | Deploy rompe el backend | Render → *Events* → *Rollback* al deploy anterior (o *Manual Deploy* de un commit previo). En paralelo, `git revert` del commit en `main` para que el próximo deploy sea correcto. |
-| Migración Alembic defectuosa | Las migraciones deben ser aditivas (agregar columnas/tablas, no borrar). Si falla: rollback del servicio y `alembic downgrade -1` desde la Shell de Render; Neon permite restaurar a un punto en el tiempo (*branch* desde un instante previo). |
+| Migración Alembic defectuosa | Las migraciones deben ser aditivas (agregar columnas/tablas, no borrar). Si falla: rollback del servicio y `alembic downgrade -1` desde la Shell de Render. El plan free de Supabase no ofrece restauración a un punto en el tiempo: antes de una migración riesgosa, respaldar con `pg_dump` usando la cadena del session pooler. |
 | Gasto de IA anómalo | `AI_MODE=mock` en Render (reinicio automático); revisar `/admin/usage`; revocar la API key si hay sospecha de filtración. |
 | Bot no responde | `getWebhookInfo` → revisar `last_error_message`; re-ejecutar `set_webhook.py`; como contingencia temporal, `TELEGRAM_MODE=polling` en local con el token de producción (tras `deleteWebhook`). |
 | Frontend roto | Rollback del static site en Render. |
-| Datos de prueba sucios antes de la demo | Neon: branch limpio desde el estado post-seed o script de limpieza; nunca borrar la base de producción sin respaldo. |
+| Datos de prueba sucios antes de la demo | Script de limpieza o restaurar un `pg_dump` tomado tras el seed (Supabase *SQL Editor* / `psql`); nunca borrar la base de producción sin respaldo. |
 
 ## 9. Matriz de entornos
 
 | Aspecto | Local | CI (GitHub Actions) | Producción (Render) |
 |---|---|---|---|
 | `APP_ENV` | `development` | `test` | `production` |
-| BD | Postgres 16 en contenedor | SQLite archivo + Postgres 16 servicio | Neon Postgres 16 (`sslmode=require`) |
+| BD | Supabase (proyecto dev) o Postgres 16 en contenedor (`--profile localdb`) | SQLite archivo + Postgres 16 servicio | Supabase Postgres (session pooler :5432, `sslmode=require`) |
 | `AI_MODE` | `mock` (live en sesiones controladas) | `mock` **siempre** | `live` controlado / `mock` |
 | `TELEGRAM_MODE` | `polling` (bot dev) o `disabled` | `disabled` (`respx`) | `webhook` |
-| `STORAGE_BACKEND` | `local` | `local` (tmp) | `s3` (R2) |
+| `STORAGE_BACKEND` | `local` | `local` (tmp) | `s3` (Supabase Storage) |
 | `SCHEDULER_ENABLED` | `true` | `false` | `true` + cron GitHub |
 | Secretos | `.env` local | Ninguno real | Env vars de Render + GitHub Secrets (hooks) |
 | URL | `localhost:5173 / 8000 / 8501` | — | `*.onrender.com` |

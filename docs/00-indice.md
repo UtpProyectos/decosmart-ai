@@ -18,7 +18,7 @@
 | 07 | [07-presupuesto-costos.md](07-presupuesto-costos.md) | Precios verificados, fórmulas, estimación de la campaña de pruebas, peor caso, mecanismos de control y optimización de imágenes. |
 | 08 | [08-dashboard-kpis.md](08-dashboard-kpis.md) | Páginas del dashboard Streamlit, definición y fórmula de cada KPI, fuente (endpoint/tabla) y wireframe. |
 | 09 | [09-plan-pruebas.md](09-plan-pruebas.md) | Estrategia de pruebas, ~35 casos de prueba, criterios de aceptación por módulo, set anti-alucinación de 20 preguntas y checklist de evidencias. |
-| 10 | [10-devops.md](10-devops.md) | Docker y Compose, runbook local (Windows), workflows de GitHub Actions, Render, Neon, Cloudflare R2, Telegram, OpenAI, n8n opcional, rollback. |
+| 10 | [10-devops.md](10-devops.md) | Docker y Compose, runbook local (Windows), workflows de GitHub Actions, Render, Supabase (Postgres + Storage), Telegram, OpenAI, n8n opcional, rollback. |
 | 11 | [11-backlog-equipo.md](11-backlog-equipo.md) | Backlog por fases en historias de usuario (MoSCoW, puntos, responsable, criterios), Gantt de 4 semanas, RACI y flujo Git. |
 | 12 | [12-matriz-rubrica.md](12-matriz-rubrica.md) | Matriz de cumplimiento de los 9 criterios de la rúbrica con evidencias, responsables y estado. |
 | 13 | [13-informe-tecnico-estructura.md](13-informe-tecnico-estructura.md) | Estructura del informe técnico: secciones, qué escribir, de qué documento extraerlo y extensión sugerida. |

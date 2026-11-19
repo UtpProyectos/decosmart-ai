@@ -32,8 +32,8 @@ flowchart LR
     subgraph Externos["Servicios externos"]
         OAI["OpenAI API<br/>Responses + Images (edit) + Moderation"]
         TG["Telegram Bot API"]
-        NEON[("Neon PostgreSQL 16")]
-        R2[("Cloudflare R2<br/>products/ público · customers/ privado")]
+        SUPADB[("Supabase Postgres<br/>session pooler")]
+        SUPAST[("Supabase Storage<br/>bucket privado · customers/")]
         N8N["n8n (opcional)"]
     end
 
@@ -61,9 +61,9 @@ flowchart LR
     SVC --> AUT
     AUT -->|notificaciones| TG
     AUT -.->|POST evento, 3 s| N8N
-    SVC --> NEON
-    BUD --> NEON
-    STO --> R2
+    SVC --> SUPADB
+    BUD --> SUPADB
+    STO --> SUPAST
     ADM --> DASH
     DASH -->|X-Admin-Key| ADMAPI
     TG -->|alertas| ADM
@@ -85,7 +85,7 @@ flowchart LR
 | Simulador | `app/simulation/`, `app/imaging/` | Cuotas, caché, prompt, `images.edit`, optimización de entrada/salida, rating. |
 | Automatización | `app/automation/` | `emit()` de eventos, handlers de notificación, scheduler (resumen, expiración, limpieza), reenvío a n8n. |
 | Budget guard | `app/services/budget.py`, `app/core/pricing.py` | Estima costo, bloquea si se excede `BUDGET_USD_LIMIT`, registra `api_usage`. |
-| Storage | `app/storage/` | Protocolo `put/get/url/delete` con backend local o S3 (R2). |
+| Storage | `app/storage/` | Protocolo `put/get/url/delete` con backend local o S3 (Supabase Storage). |
 | Proveedor IA | `app/ai/` | `AIProvider` con `OpenAIProvider` y `MockProvider` (`AI_MODE`). |
 | Dashboard | `dashboard/` | KPIs vía `/admin/*` con `st.cache_data(ttl=30)`. |
 
@@ -152,7 +152,7 @@ sequenceDiagram
     participant S as simulation.service
     participant B as budget
     participant I as imaging.pipeline
-    participant ST as Storage (R2)
+    participant ST as Storage (Supabase)
     participant P as AIProvider
     participant DB as PostgreSQL
     participant TG as Telegram
@@ -261,7 +261,7 @@ sequenceDiagram
     participant CI as Actions ci.yml
     participant DP as Actions deploy.yml
     participant RD as Render
-    participant NE as Neon
+    participant NE as Supabase Postgres
     participant TG as Telegram
 
     D->>GH: push feat/* + Pull Request
@@ -302,8 +302,8 @@ flowchart TB
         PFE --> PBE
         PDA --> PBE
     end
-    PBE --> PNE[("Neon Postgres<br/>sslmode=require")]
-    PBE --> PR2[("Cloudflare R2")]
+    PBE --> PNE[("Supabase Postgres<br/>session pooler :5432<br/>sslmode=require")]
+    PBE --> PST[("Supabase Storage<br/>API S3, bucket privado")]
     TGP["Telegram Bot API"] -->|webhook| PBE
     PBE --> OAIP["OpenAI"]
 ```
@@ -311,8 +311,8 @@ flowchart TB
 | Aspecto | Local | Producción |
 |---|---|---|
 | Telegram | `polling` (hilo daemon en `lifespan`) | `webhook` con `secret_token` |
-| BD | Contenedor `postgres:16-alpine` | Neon (free, persistente) |
-| Imágenes | Disco local `./backend/storage` servido en `/media/*` | R2: `products/` público, `customers/` privado con URL prefirmada |
+| BD | Supabase (por defecto, `DATABASE_URL` de `.env`) o contenedor `postgres:16-alpine` opcional (`--profile localdb`) | Supabase Postgres (free, persistente; session pooler) |
+| Imágenes | Disco local `./backend/storage` servido en `/media/*` | Supabase Storage: bucket privado, solo `customers/` con URL prefirmada; catálogo servido por el backend en `/static/products` |
 | IA | `AI_MODE=mock` por defecto | `AI_MODE=live` solo en sesiones controladas |
 | Scheduler | APScheduler | APScheduler + respaldo `daily-summary.yml` |
 | Frontend | nginx en contenedor | Static site de Render con rewrite `/* → /index.html` |
@@ -331,4 +331,4 @@ Resumen; el registro formal está en [`DECISIONES.md`](DECISIONES.md).
 | **Router de reglas antes del LLM** | Saludos, menú, botones y comandos no gastan tokens. |
 | **Guardias en el servidor** | Anti-alucinación (`guard.py`) y presupuesto (`budget.py`) no dependen del comportamiento del modelo. |
 | **Procesamiento en `BackgroundTasks`** | El webhook responde 200 de inmediato; la imagen (hasta ~60 s) se genera fuera del ciclo de respuesta, evitando reintentos de Telegram. |
-| **Storage desacoplado** | El protocolo `Storage` permite disco local en desarrollo y R2 en producción sin cambiar el código de negocio. |
+| **Storage desacoplado** | El protocolo `Storage` permite disco local en desarrollo y Supabase Storage (API S3) en producción sin cambiar el código de negocio. |

@@ -1,6 +1,6 @@
 # 14 — Guion de la demostración (≤ 5 minutos)
 
-> Entregable 22. Coordina: Integrante 4. Entorno: **producción** (Render + Neon + R2) con `AI_MODE=live`.
+> Entregable 22. Coordina: Integrante 4. Entorno: **producción** (Render + Supabase Postgres + Supabase Storage) con `AI_MODE=live`.
 > Pantalla dividida recomendada: navegador a la izquierda, Telegram Desktop (cliente) a la derecha; un segundo dispositivo con el chat del admin visible (o Telegram Desktop con dos cuentas).
 
 ## 1. Cronograma
@@ -49,6 +49,7 @@ Durante los ~30–60 s que tarda la generación (bloque 1:50–2:50), Dev B expl
 
 ### T − 24 h
 - [ ] Último deploy en `main` estable; CI verde; tag `v0.1.0`.
+- [ ] **Reactivar proyecto Supabase**: el plan free se pausa tras ~1 semana sin actividad; entrar al panel, confirmar estado *Active* (o *Restore project*) y verificar `/health` → `db: ok`. Repetir a T − 15 min.
 - [ ] Gasto acumulado en `/admin/usage` y en el panel de OpenAI registrados; quedan ≥ US$ 1.00 bajo el límite.
 - [ ] La cuenta de Telegram que se usará en la demo tiene **0 simulaciones usadas** (usar una cuenta distinta a la de los ensayos; `MAX_SIMULATIONS_PER_CUSTOMER=2`).
 - [ ] Foto `demo-sala.jpg` probada en un ensayo live (resultado aceptable) y guardada en el escritorio del presentador.

@@ -111,6 +111,16 @@ Si por error se usa `gpt-5.4-mini` con el volumen pesimista: 750 × (4 000 × 0.
 | Mensajes LLM por cliente/día (`MAX_LLM_MESSAGES_PER_CUSTOMER_PER_DAY=40`) | 40 × 5 llamadas × ≤ 0.0014 | ≤ US$ 0.28 / cliente / día |
 | Presupuesto global | `BUDGET_USD_LIMIT=3.50` | US$ 3.50 total |
 
+### 4.6 Infraestructura (US$ 0)
+
+El presupuesto de US$ 4 es solo para la API de OpenAI; la infraestructura usa planes gratuitos:
+
+| Servicio | Plan | Límite relevante | Uso estimado |
+|---|---|---|---|
+| Render (API, web, dashboard) | Free | El servicio duerme tras ~15 min sin tráfico | 3 servicios |
+| Supabase Postgres | Free | 500 MB de BD; el proyecto se pausa tras ~1 semana sin actividad | < 50 MB |
+| Supabase Storage | Free | 1 GB | < 35 MB (fotos temporales, borradas tras `PHOTO_RETENTION_DAYS`) |
+
 ## 5. Mecanismos de control
 
 | # | Mecanismo | Dónde | Efecto |
@@ -159,7 +169,7 @@ Implementación: `backend/app/imaging/pipeline.py` ([handoff §5.5](CODEX_HANDOF
 | Tamaño máximo de subida | Rechazo previo | `MAX_UPLOAD_MB=10` |
 | Retención | Borrado automático | `PHOTO_RETENTION_DAYS=7` |
 
-Beneficios: menos bytes subidos (menor latencia y menor costo de tokens de imagen de entrada), resultados que Telegram muestra sin recomprimir, almacenamiento en R2 mínimo (≈ 40 simulaciones × (≤ 400 KB + ≤ 400 KB) < 35 MB).
+Beneficios: menos bytes subidos (menor latencia y menor costo de tokens de imagen de entrada), resultados que Telegram muestra sin recomprimir, almacenamiento en Supabase Storage mínimo (≈ 40 simulaciones × (≤ 400 KB + ≤ 400 KB) < 35 MB).
 
 ## 7. Protocolo de pruebas con costo
 

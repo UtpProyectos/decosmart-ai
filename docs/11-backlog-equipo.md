@@ -9,7 +9,7 @@
 |---|---|---|
 | **Dev A** | Frontend | Tienda web React (catálogo, carrito, cotización, checkout demo, Telegram button) |
 | **Dev B** | Backend + bot + IA | Modelo de datos, API, bot de Telegram, agente IA, simulador, pipeline de imágenes, presupuesto |
-| **Dev C** | Automatización + dashboard + DevOps | Eventos y notificaciones, scheduler, n8n opcional, dashboard Streamlit, Docker, CI/CD, Render/Neon/R2 |
+| **Dev C** | Automatización + dashboard + DevOps | Eventos y notificaciones, scheduler, n8n opcional, dashboard Streamlit, Docker, CI/CD, Render/Supabase |
 | **Integrante 4** | Documentación, PPT y QA | Docs, informe técnico, presentación, plan de pruebas, set anti-alucinación, evidencias, guion de demo; *Scrum Master* |
 
 Escala de estimación: puntos de historia (Fibonacci 1, 2, 3, 5, 8). Capacidad aproximada: 8–10 puntos por persona por semana.
@@ -40,7 +40,7 @@ Prioridad MoSCoW: **M** (Must), **S** (Should), **C** (Could), **W** (Won't, est
 | F1-06 | Como backend, quiero servicios de catálogo, cotizaciones, pedidos y códigos correlativos. | M | 8 | Dev B | Endpoints públicos de doc 04; precios congelados (TC-09); transiciones (TC-11). |
 | F1-07 | Como admin, quiero endpoints `/admin/*` protegidos. | M | 5 | Dev B | TC-SEC-1; PATCH de estados y stock. |
 | F1-08 | Como sistema, quiero registrar eventos de negocio. | M | 3 | Dev C | `emit()` inserta en `events`; handlers no propagan errores. |
-| F1-09 | Como desarrollador, quiero storage local/S3 intercambiable. | M | 3 | Dev C | Tests de `put/get/url/delete` con local; prueba manual con R2. |
+| F1-09 | Como desarrollador, quiero storage local/S3 intercambiable. | M | 3 | Dev C | Tests de `put/get/url/delete` con local; prueba manual con Supabase Storage. |
 | F1-10 | Como cliente, quiero un sitio responsive y accesible. | S | 3 | Dev A | TC-14; `alt` en imágenes; foco visible. |
 
 ### Fase 2 — IA y bot (semana 2–3)
@@ -82,7 +82,7 @@ Prioridad MoSCoW: **M** (Must), **S** (Should), **C** (Could), **W** (Won't, est
 | F4-01 | Como equipo, quiero Dockerfiles finales para los 3 servicios. | M | 3 | Dev C | Build en CI; usuario no root. |
 | F4-02 | Como equipo, quiero CI completo con job Postgres. | M | 3 | Dev C | TC-DEV-2 < 10 min. |
 | F4-03 | Como equipo, quiero deploy automático a Render tras merge. | M | 3 | Dev C | TC-DEV-3. |
-| F4-04 | Como equipo, quiero Neon y R2 configurados. | M | 3 | Dev C | `/health` `db: ok`; imágenes de productos desde R2. |
+| F4-04 | Como equipo, quiero Supabase (Postgres + Storage) configurado. | M | 3 | Dev C | `/health` `db: ok`; fotos de simulación guardadas en el bucket privado de Supabase Storage. |
 | F4-05 | Como cliente, quiero el bot de producción con webhook. | M | 2 | Dev B + Dev C | `getWebhookInfo` sin errores. |
 | F4-06 | Como admin, quiero el resumen diario aunque Render duerma. | S | 1 | Dev C | `daily-summary.yml` ejecutado con éxito. |
 
@@ -123,7 +123,7 @@ gantt
     Notificaciones y scheduler (Dev C)     :f3a, after f1c, 4d
     Métricas + dashboard (Dev C)           :f3b, after f3a, 5d
     section Fase 4 Despliegue
-    Dockerfiles finales, CI completo, Render, Neon, R2 :f4, 2026-12-07, 5d
+    Dockerfiles finales, CI completo, Render, Supabase :f4, 2026-12-07, 5d
     Webhook producción                     :f4b, after f2c, 1d
     section Fase 5 QA, docs y demo
     Documentación continua (Int. 4)        :f5a, 2026-11-23, 24d
@@ -157,7 +157,7 @@ R = Responsable (ejecuta), A = Aprobador (rinde cuentas), C = Consultado, I = In
 | Presupuesto y precios (doc 07) | I | **R** | C | **A** (conciliación) |
 | Automatización y notificaciones | I | C | **R/A** | I |
 | Dashboard Streamlit (doc 08) | C | C | **R/A** | C |
-| Docker, CI/CD, Render, Neon, R2 (doc 10) | C | C | **R/A** | I |
+| Docker, CI/CD, Render, Supabase (doc 10) | C | C | **R/A** | I |
 | Seguridad y privacidad (doc 06) | C | **R** | **R** | **A** (checklist) |
 | Plan de pruebas y ejecución (doc 09) | R (front) | R (back) | R (ops) | **A** |
 | Documentación 00–14 | C | C | C | **R/A** |
@@ -170,7 +170,7 @@ R = Responsable (ejecuta), A = Aprobador (rinde cuentas), C = Consultado, I = In
 |---|---|
 | Dev A | `frontend/` completo, tests vitest, capturas de la tienda (desktop y 375 px), sección "Frontend" del informe. |
 | Dev B | `backend/app` (excepto `automation/`), tests pytest del agente/bot/simulación, set anti-alucinación automatizado en mock, sección "Agente IA y simulación" del informe. |
-| Dev C | `backend/app/automation/`, `services/metrics.py`, `dashboard/`, Dockerfiles, `docker-compose.yml`, `.github/workflows/*`, `render.yaml`, setup de Neon/R2/Render, sección "DevOps y automatización". |
+| Dev C | `backend/app/automation/`, `services/metrics.py`, `dashboard/`, Dockerfiles, `docker-compose.yml`, `.github/workflows/*`, `render.yaml`, setup de Supabase/Render, sección "DevOps y automatización". |
 | Integrante 4 | `docs/` 00–14, ejecución del plan de pruebas y evidencias, UAT, conciliación de costos, informe integrado, PPT, guion y video de respaldo de la demo. |
 
 ## 5. Flujo de trabajo Git
@@ -182,7 +182,7 @@ R = Responsable (ejecuta), A = Aprobador (rinde cuentas), C = Consultado, I = In
   - `feat(bot): agrega flujo de consentimiento de foto`
   - `fix(api): corrige total de cotización con varias unidades`
   - `test(agent): caso de guard con precio inventado`
-  - `docs(devops): pasos de configuración de R2`
+  - `docs(devops): pasos de configuración de Supabase Storage`
   - `chore(ci): cachea dependencias de npm`
   - `refactor(simulation): extrae cálculo de cache_key`
 - **Issues**: cada historia como issue en GitHub con etiquetas `fase-0…5`, `MoSCoW`, área; tablero GitHub Projects (To do / In progress / Review / Done).
