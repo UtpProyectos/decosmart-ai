@@ -1,7 +1,7 @@
 export interface Category { id: number; slug: string; name: string; product_count: number }
 export interface ProductCategory { slug: string; name: string }
 export interface Dimensions { width_cm: number; height_cm: number; depth_cm: number }
-export interface ProductImage { url: string; alt: string }
+export interface ProductImage { id?: number; url: string; alt: string; is_primary?: boolean; is_reference?: boolean; sort_order?: number; width?: number | null; height?: number | null }
 export interface Product {
   id: number; sku: string; slug: string; name: string; category: ProductCategory; price: string; currency: 'USD';
   stock: number; in_stock: boolean; low_stock: boolean; dimensions: Dimensions; colors: string[]; material: string | null;
