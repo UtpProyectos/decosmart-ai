@@ -385,62 +385,94 @@ def load_health() -> ApiResult:
 
 # ---------------------------------------------------------------------------
 # Envoltorios cacheados para las páginas (ttl=30 s)
+#
+# Solo se cachean los resultados correctos: si la carga falla, la función cacheada
+# lanza ``_UncachedResult`` (st.cache_data no guarda excepciones) y el envoltorio
+# devuelve el resultado con el error. Así, cuando la API vuelve, la siguiente
+# ejecución obtiene datos frescos sin esperar el TTL.
 # ---------------------------------------------------------------------------
 
 
+class _UncachedResult(Exception):
+    """Transporta un resultado fallido fuera de la función cacheada sin que se guarde."""
+
+    def __init__(self, result: Any) -> None:
+        super().__init__("resultado no cacheable")
+        self.result = result
+
+
+_LOADERS = {
+    "summary": load_summary,
+    "daily": load_daily,
+    "top_products": load_top_products,
+    "usage": load_usage,
+    "events": load_events,
+    "errors": load_errors,
+    "simulations": load_simulations,
+    "orders": load_orders,
+    "quotes": load_quotes,
+    "products": load_products,
+    "health": load_health,
+}
+
+
 @_cache
+def _cached_load(name: str, *args: Any) -> ApiResult:
+    result = _LOADERS[name](*args)
+    if result.error:
+        raise _UncachedResult(result)
+    return result
+
+
+def _get(name: str, *args: Any) -> ApiResult:
+    try:
+        return _cached_load(name, *args)
+    except _UncachedResult as exc:
+        return exc.result
+
+
 def get_summary() -> ApiResult:
-    return load_summary()
+    return _get("summary")
 
 
-@_cache
 def get_daily(days: int = 14) -> ApiResult:
-    return load_daily(days)
+    return _get("daily", days)
 
 
-@_cache
 def get_top_products(kind: str = "inquired", limit: int = 5) -> ApiResult:
-    return load_top_products(kind, limit)
+    return _get("top_products", kind, limit)
 
 
-@_cache
 def get_usage(days: int = 30) -> ApiResult:
-    return load_usage(days)
+    return _get("usage", days)
 
 
-@_cache
 def get_events(type_: str | None = None, limit: int = 50, offset: int = 0) -> ApiResult:
-    return load_events(type_, limit, offset)
+    return _get("events", type_, limit, offset)
 
 
-@_cache
 def get_errors(limit: int = 50) -> ApiResult:
-    return load_errors(limit)
+    return _get("errors", limit)
 
 
-@_cache
 def get_simulations(limit: int = 50) -> ApiResult:
-    return load_simulations(limit)
+    return _get("simulations", limit)
 
 
-@_cache
 def get_orders(status: str | None = None) -> ApiResult:
-    return load_orders(status)
+    return _get("orders", status)
 
 
-@_cache
 def get_quotes(status: str | None = None) -> ApiResult:
-    return load_quotes(status)
+    return _get("quotes", status)
 
 
-@_cache
 def get_products() -> ApiResult:
-    return load_products()
+    return _get("products")
 
 
-@_cache
 def get_health() -> ApiResult:
-    return load_health()
+    return _get("health")
 
 
 def resolve_url(url: str | None) -> str | None:
@@ -468,8 +500,18 @@ def load_image_bytes(url: str | None) -> bytes | None:
 
 
 @_cache
+def _cached_image_bytes(url: str | None) -> bytes | None:
+    content = load_image_bytes(url)
+    if content is None:  # imagen no disponible: no se cachea, se reintenta en la próxima ejecución
+        raise _UncachedResult(None)
+    return content
+
+
 def get_image_bytes(url: str | None) -> bytes | None:
-    return load_image_bytes(url)
+    try:
+        return _cached_image_bytes(url)
+    except _UncachedResult:
+        return None
 
 
 def clear_cache() -> None:
