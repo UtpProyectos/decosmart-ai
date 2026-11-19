@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react'
-import { Outlet } from 'react-router-dom'
+import { NavLink, Outlet } from 'react-router-dom'
 import { ADMIN_KEY_STORAGE, adminApi } from '../../api/admin'
 import { ApiError } from '../../api/client'
 import { Loading } from '../../components/Loading'
@@ -54,5 +54,15 @@ export function AdminLayout() {
         </form>
       </div>
     )
-  return <Outlet />
+  return (
+    <>
+      <nav className="container admin-subnav" aria-label="Secciones del panel">
+        <NavLink to="/admin" end>
+          Productos
+        </NavLink>
+        <NavLink to="/admin/pedidos">Pedidos</NavLink>
+      </nav>
+      <Outlet />
+    </>
+  )
 }

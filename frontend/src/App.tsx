@@ -21,6 +21,9 @@ const AdminProducts = lazy(() =>
 const AdminProductForm = lazy(() =>
   import('./pages/admin/AdminProductForm').then((module) => ({ default: module.AdminProductForm })),
 )
+const AdminOrders = lazy(() =>
+  import('./pages/admin/AdminOrders').then((module) => ({ default: module.AdminOrders })),
+)
 const deferred = (element: React.ReactNode) => (
   <Suspense
     fallback={
@@ -51,6 +54,7 @@ const router = createBrowserRouter([
         element: deferred(<AdminLayout />),
         children: [
           { index: true, element: deferred(<AdminProducts />) },
+          { path: 'pedidos', element: deferred(<AdminOrders />) },
           { path: 'productos/nuevo', element: deferred(<AdminProductForm />) },
           { path: 'productos/:id', element: deferred(<AdminProductForm />) },
         ],
