@@ -1,2 +1,24 @@
 import type { Category } from '../types'
-export function CategoryFilter({ categories, value, onChange }: { categories: Category[]; value: string; onChange: (value: string) => void }) { return <label className="field"><span>Categoría</span><select value={value} onChange={(event) => onChange(event.target.value)}><option value="">Todas</option>{categories.map((category) => <option value={category.slug} key={category.id}>{category.name} ({category.product_count})</option>)}</select></label> }
+export function CategoryFilter({
+  categories,
+  value,
+  onChange,
+}: {
+  categories: Category[]
+  value: string
+  onChange: (value: string) => void
+}) {
+  return (
+    <label className="field">
+      <span>Categoría</span>
+      <select value={value} onChange={(event) => onChange(event.target.value)}>
+        <option value="">Todas</option>
+        {categories.map((category) => (
+          <option value={category.slug} key={category.id}>
+            {category.name} ({category.product_count})
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+}
