@@ -38,3 +38,6 @@ Thumbs.db
 
 # Bases SQLite locales/tests
 *.db
+
+# Worktrees/estado local de Claude Code
+.claude/
