@@ -134,3 +134,51 @@ Cuerpo: objeto `Update` de Telegram. Responde siempre `200 {"ok":true}` rápido;
 
 ## Códigos de error
 `VALIDATION_ERROR` (422), `PRODUCT_NOT_FOUND`, `QUOTE_NOT_FOUND`, `ORDER_NOT_FOUND` (404), `INSUFFICIENT_STOCK`, `INVALID_TRANSITION` (409), `UNAUTHORIZED` (401), `RATE_LIMITED` (429), `BUDGET_EXCEEDED` (402, solo interno/admin), `INTERNAL_ERROR` (500).
+
+---
+
+## Ampliación v0.2 — Gestión de productos e imágenes (admin)
+
+> Agregado el 2026-11-18. El panel admin vive en la tienda (`/admin`). Auth: header `X-Admin-Key` solo si `ADMIN_API_KEY` está definido (ADR-011); si está vacío, abierto.
+
+### Modelo `product_images` (cambios)
+Nuevas columnas: `storage_key` varchar(255) NULL (imagen subida a storage; NULL para las imágenes seed en `/static`), `is_reference` bool default false (la IA la usa como referencia del mueble en la simulación), `width` int NULL, `height` int NULL, `bytes` int NULL.
+Reglas: exactamente una imagen `is_primary` por producto (si se marca otra, se desmarca la anterior; si se borra la principal, pasa a ser la primera por `sort_order`). Varias pueden ser `is_reference` (la IA usa hasta `SIMULATION_MAX_REFERENCE_IMAGES`, default 2, por `sort_order`). Si ninguna es referencia, se usa la principal; si no hay ninguna, `products.reference_image_key`.
+
+### Servir imágenes subidas
+`GET /api/images/{image_id}` (público): devuelve la imagen. Con storage `s3` responde **302** a una URL prefirmada (10 min); con `local`, la sirve directamente. `Cache-Control: public, max-age=300`. 404 `IMAGE_NOT_FOUND`.
+En todas las respuestas de producto, la `url` de una imagen subida es `/api/images/{id}` (relativa; el frontend antepone `VITE_API_URL`). Las imágenes seed mantienen `/static/products/...`.
+
+### Forma de imagen en respuestas (pública y admin)
+```json
+{"id": 12, "url": "/api/images/12", "alt": "Sofá Oslo vista frontal", "is_primary": true, "is_reference": true, "sort_order": 0, "width": 1280, "height": 960}
+```
+`GET /api/products/{id_or_slug}` devuelve `images: [...]` con esta forma (ordenadas por `sort_order`), además de `primary_image`.
+
+### Endpoints admin de productos
+| Método | Ruta | Cuerpo / notas | Respuesta |
+|---|---|---|---|
+| GET | `/admin/products?include_inactive=true` | lista completa | `{items: [ProductAdmin], total}` |
+| GET | `/admin/products/{id}` | | `ProductAdmin` |
+| POST | `/admin/products` | `ProductWrite` (todos los campos obligatorios salvo material/style/room_types/active) | 201 `ProductAdmin` |
+| PATCH | `/admin/products/{id}` | `ProductWrite` parcial | `ProductAdmin` (emite `product.low_stock` si corresponde) |
+| DELETE | `/admin/products/{id}` | baja lógica (`active=false`) | 204 |
+| POST | `/admin/products/{id}/images` | `multipart/form-data`: `files` (1..8 archivos jpg/png/webp, ≤ `MAX_UPLOAD_MB` c/u), opcional `alt`, `is_reference` (bool) | 201 `{images: [Image]}` |
+| PATCH | `/admin/products/{id}/images/{image_id}` | `{alt?, is_primary?, is_reference?, sort_order?}` | `Image` |
+| PUT | `/admin/products/{id}/images/order` | `{image_ids: [3, 1, 2]}` | `{images: [Image]}` |
+| DELETE | `/admin/products/{id}/images/{image_id}` | borra de storage (si `storage_key`) y de BD | 204 |
+| GET | `/admin/categories` | | `[{id, slug, name}]` |
+
+`ProductWrite`:
+```json
+{"sku":"DS-SOF-002","category_slug":"sofas","name":"Sofá Lino 2 plazas","slug":"sofa-lino-2-plazas","description":"…",
+ "price":"499.00","stock":5,"width_cm":160,"height_cm":85,"depth_cm":88,"colors":["crudo","gris"],
+ "material":"Lino y madera","style":"nordico","room_types":["sala"],"active":true}
+```
+`slug` opcional (se genera desde `name`). `ProductAdmin` = producto público + `active`, `images` (forma de arriba), `created_at`, `updated_at`.
+Errores: 409 `SKU_TAKEN` / `SLUG_TAKEN`, 404 `PRODUCT_NOT_FOUND` / `IMAGE_NOT_FOUND`, 422 `INVALID_IMAGE` (formato/tamaño/lado menor < 320 px), 422 `TOO_MANY_IMAGES` (máx. 12 por producto).
+
+Procesamiento de subida: `imaging.pipeline.optimize_input` (≤1280 px, JPEG, sin EXIF) → storage key `products/{product_id}/{uuid}.jpg`.
+
+### Telegram
+Al listar productos (categoría, búsqueda o recomendaciones), el bot envía **una foto por producto** (imagen principal) con caption corto (nombre, precio, medidas, stock) y botones `Ver detalle` · `Simular` · `Cotizar`. La ficha de detalle envía hasta 4 imágenes como álbum (`sendMediaGroup`) seguido de la ficha de texto con botones.
