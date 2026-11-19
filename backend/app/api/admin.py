@@ -64,7 +64,7 @@ def usage(days: int = Query(default=30, ge=1, le=365), db: Session = Depends(get
 @router.get("/events")
 def list_events(
     type: str | None = None,  # noqa: A002
-    limit: int = Query(default=50, ge=1, le=500),
+    limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ):
@@ -84,7 +84,7 @@ def list_events(
 
 @router.get("/errors")
 def list_errors(
-    limit: int = Query(default=50, ge=1, le=500),
+    limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     source: str | None = None,
     db: Session = Depends(get_db),
@@ -160,7 +160,7 @@ def _order_admin(o: Order) -> dict:
 @router.get("/quotes")
 def list_quotes(
     status: str | None = None,
-    limit: int = Query(default=50, ge=1, le=500),
+    limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ):
@@ -176,7 +176,7 @@ def list_quotes(
 @router.get("/orders")
 def list_orders(
     status: str | None = None,
-    limit: int = Query(default=50, ge=1, le=500),
+    limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ):

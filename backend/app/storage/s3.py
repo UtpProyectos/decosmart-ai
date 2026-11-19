@@ -1,4 +1,7 @@
-"""Storage S3 compatible (Cloudflare R2). Objetos privados; URLs prefirmadas de GET."""
+"""Storage S3 compatible (Supabase Storage S3 API u otro). Bucket privado; URLs prefirmadas de GET.
+
+Supabase: S3_ENDPOINT_URL=https://<ref>.supabase.co/storage/v1/s3, S3_REGION=us-east-1 (path-style).
+"""
 
 from app.storage.base import validate_key
 
@@ -23,8 +26,9 @@ class S3Storage:
                 endpoint_url=endpoint_url or None,
                 aws_access_key_id=access_key_id or None,
                 aws_secret_access_key=secret_access_key or None,
-                region_name=region or "auto",
-                config=Config(signature_version="s3v4", retries={"max_attempts": 3}),
+                region_name=region or None,
+                config=Config(signature_version="s3v4", s3={"addressing_style": "path"},
+                              retries={"max_attempts": 3}),
             )
         self.client = client
 

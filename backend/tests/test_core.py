@@ -69,9 +69,18 @@ def test_local_storage_rejects_bad_keys(tmp_path, bad):
     assert not st.exists(bad)
 
 
-def test_s3_presigned_url_offline():
-    st = S3Storage("bucket", "https://acc.r2.cloudflarestorage.com", "AKID", "SECRET", "auto")
+def test_s3_presigned_url_offline_path_style():
+    st = S3Storage("bucket", "https://ref.supabase.co/storage/v1/s3", "AKID", "SECRET", "us-east-1")
+    assert st.client.meta.config.s3["addressing_style"] == "path"
+    assert st.client.meta.region_name == "us-east-1"
     url = st.url("customers/1/outputs/2.jpg", expires=600)
-    assert url.startswith("https://")
-    assert "customers/1/outputs/2.jpg" in url
-    assert "X-Amz-Expires=600" in url
+    assert url.startswith("https://ref.supabase.co/storage/v1/s3/bucket/customers/1/outputs/2.jpg?")
+    assert "X-Amz-Expires=600" in url and "X-Amz-Algorithm=AWS4-HMAC-SHA256" in url
+
+
+def test_engine_kwargs():
+    from app.core.db import engine_kwargs
+
+    pg = engine_kwargs("postgresql+psycopg://u:p@host:5432/db?sslmode=require")
+    assert pg == {"pool_pre_ping": True, "pool_recycle": 300}
+    assert "pool_recycle" not in engine_kwargs("sqlite:///./x.db")

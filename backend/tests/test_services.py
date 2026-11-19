@@ -105,6 +105,7 @@ def test_record_inquiry_emits_event(db):
     assert db.get(Inquiry, inq.id).type == "price"
     ev = db.scalar(select(Event).where(Event.type == "inquiry.created"))
     assert ev.entity_id == inq.id
+    assert ev.payload["type"] == "price" and ev.payload["channel"] == "telegram"
 
 
 # ---------- quotes / orders ----------

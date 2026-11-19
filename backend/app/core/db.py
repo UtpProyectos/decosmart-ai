@@ -27,11 +27,15 @@ class UpdatedMixin(TimestampMixin):
     )
 
 
-def _make_engine(url: str):
-    kwargs: dict = {"pool_pre_ping": True}
+def engine_kwargs(url: str) -> dict:
     if url.startswith("sqlite"):
-        kwargs = {"connect_args": {"check_same_thread": False}}
-    return create_engine(url, **kwargs)
+        return {"connect_args": {"check_same_thread": False}}
+    # Postgres (Supabase session pooler): el pooler cierra conexiones ociosas.
+    return {"pool_pre_ping": True, "pool_recycle": 300}
+
+
+def _make_engine(url: str):
+    return create_engine(url, **engine_kwargs(url))
 
 
 engine = _make_engine(get_settings().database_url)
