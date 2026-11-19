@@ -1,0 +1,57 @@
+name: decosmart
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: decosmart
+      POSTGRES_PASSWORD: decosmart
+      POSTGRES_DB: decosmart
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U decosmart -d decosmart"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: ./backend
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://decosmart:decosmart@db:5432/decosmart
+      LOCAL_STORAGE_PATH: /app/storage
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/storage:/app/storage
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+        VITE_TELEGRAM_BOT_URL: ${VITE_TELEGRAM_BOT_URL:-https://t.me/DecoSmartBot}
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+  dashboard:
+    build: ./dashboard
+    environment:
+      DASHBOARD_API_URL: http://backend:8000
+      DASHBOARD_ADMIN_KEY: ${ADMIN_API_KEY:-change-me-admin-key}
+      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:-}
+    ports:
+      - "8501:8501"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:

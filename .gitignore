@@ -1,0 +1,40 @@
+# Entornos y secretos
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# Node
+node_modules/
+dist/
+coverage/
+*.log
+
+# Almacenamiento local de imágenes (dev)
+backend/storage/
+storage/
+!backend/app/storage/
+
+# SO / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Worktrees de agentes
+.worktrees/
+
+# Bases SQLite locales/tests
+*.db

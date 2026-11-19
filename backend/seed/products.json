@@ -1,0 +1,54 @@
+{
+  "categories": [
+    {"slug": "sofas", "name": "Sofás", "description": "Sofás y sillones para sala."},
+    {"slug": "mesas", "name": "Mesas", "description": "Mesas de centro, comedor y auxiliares."},
+    {"slug": "sillas", "name": "Sillas", "description": "Sillas de comedor y estudio."},
+    {"slug": "camas", "name": "Camas", "description": "Camas y respaldos."},
+    {"slug": "almacenamiento", "name": "Almacenamiento", "description": "Libreros, repisas y organizadores."},
+    {"slug": "escritorios", "name": "Escritorios", "description": "Escritorios para home office."}
+  ],
+  "products": [
+    {
+      "sku": "DS-SOF-001", "category": "sofas", "name": "Sofá Oslo 3 plazas", "slug": "sofa-oslo-3-plazas",
+      "description": "Sofá de tres cuerpos de líneas nórdicas, tapizado en tela antimanchas y patas de madera maciza. Cojines de espuma de alta densidad.",
+      "price": "649.00", "stock": 8, "width_cm": 210, "height_cm": 85, "depth_cm": 90,
+      "colors": ["gris", "beige", "azul petróleo"], "material": "Tela y madera de pino", "style": "nordico",
+      "room_types": ["sala"], "image": "sofa-oslo.jpg", "color_hex": "#8a8f98"
+    },
+    {
+      "sku": "DS-MES-001", "category": "mesas", "name": "Mesa de centro Nórdica", "slug": "mesa-centro-nordica",
+      "description": "Mesa de centro rectangular con tablero de MDF enchapado y patas cónicas de madera. Repisa inferior para revistas.",
+      "price": "149.00", "stock": 15, "width_cm": 100, "height_cm": 45, "depth_cm": 60,
+      "colors": ["roble natural", "nogal"], "material": "MDF enchapado y madera", "style": "nordico",
+      "room_types": ["sala"], "image": "mesa-nordica.jpg", "color_hex": "#c49a6c"
+    },
+    {
+      "sku": "DS-SIL-001", "category": "sillas", "name": "Silla Arco Comedor (set x2)", "slug": "silla-arco-comedor",
+      "description": "Set de dos sillas con asiento de polipropileno ergonómico y patas de madera de haya con refuerzo metálico.",
+      "price": "119.00", "stock": 20, "width_cm": 47, "height_cm": 82, "depth_cm": 55,
+      "colors": ["blanco", "negro", "gris"], "material": "Polipropileno y haya", "style": "moderno",
+      "room_types": ["comedor", "oficina"], "image": "silla-arco.jpg", "color_hex": "#e8e8e8"
+    },
+    {
+      "sku": "DS-CAM-001", "category": "camas", "name": "Cama Queen Lumbre", "slug": "cama-queen-lumbre",
+      "description": "Cama Queen con respaldo tapizado y base de listones de madera. No incluye colchón (colchón 150 x 200 cm).",
+      "price": "529.00", "stock": 4, "width_cm": 165, "height_cm": 110, "depth_cm": 215,
+      "colors": ["nogal", "blanco"], "material": "Madera y tela", "style": "moderno",
+      "room_types": ["dormitorio"], "image": "cama-lumbre.jpg", "color_hex": "#6b4a32"
+    },
+    {
+      "sku": "DS-ALM-001", "category": "almacenamiento", "name": "Librero Modular Cubo", "slug": "librero-modular-cubo",
+      "description": "Librero de 8 cubos combinables, apto para libros, cajas organizadoras y decoración. Carga máxima 15 kg por cubo.",
+      "price": "189.00", "stock": 3, "width_cm": 120, "height_cm": 180, "depth_cm": 35,
+      "colors": ["blanco", "roble"], "material": "Melamina", "style": "moderno",
+      "room_types": ["sala", "oficina", "dormitorio"], "image": "librero-cubo.jpg", "color_hex": "#f2efe9"
+    },
+    {
+      "sku": "DS-ESC-001", "category": "escritorios", "name": "Escritorio Home Office Kappa", "slug": "escritorio-kappa",
+      "description": "Escritorio con estructura metálica negra y tablero de melamina. Pasacables y repisa lateral.",
+      "price": "229.00", "stock": 10, "width_cm": 120, "height_cm": 75, "depth_cm": 60,
+      "colors": ["negro/roble", "blanco"], "material": "Acero y melamina", "style": "industrial",
+      "room_types": ["oficina", "dormitorio"], "image": "escritorio-kappa.jpg", "color_hex": "#3b3b3b"
+    }
+  ]
+}
