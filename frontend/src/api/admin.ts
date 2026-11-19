@@ -56,6 +56,55 @@ export interface ProductAdmin {
   created_at: string
   updated_at: string
 }
+export type OrderStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled'
+export type QuoteStatus = 'sent' | 'accepted' | 'rejected' | 'expired'
+export interface OrderItem {
+  product_id: number
+  name: string | null
+  quantity: number
+  unit_price: string
+  line_total: string
+}
+export interface QuoteItem extends OrderItem {
+  sku: string | null
+}
+export interface AdminOrder {
+  id: number
+  code: string
+  status: OrderStatus
+  channel: string
+  total: string
+  currency: 'USD'
+  is_demo: boolean
+  quote_code: string | null
+  items: OrderItem[]
+  contact_name: string | null
+  contact_email: string | null
+  contact_phone: string | null
+  delivery_address: string | null
+  created_at: string | null
+}
+export interface AdminQuote {
+  id: number
+  code: string
+  status: QuoteStatus
+  channel: string
+  total: string
+  subtotal: string
+  currency: 'USD'
+  items: QuoteItem[]
+  valid_until: string
+  notes: string | null
+  customer: {
+    id: number
+    name: string | null
+    email: string | null
+    phone: string | null
+    telegram_username: string | null
+  } | null
+  sent_at: string | null
+  created_at: string | null
+}
 type ErrorBody = { error?: { code?: string; message?: string; details?: Record<string, unknown> } }
 
 function headers(contentType = true): HeadersInit {
@@ -127,4 +176,24 @@ export const adminApi = {
     }),
   deleteImage: (productId: number, imageId: number) =>
     request<void>(`/admin/products/${productId}/images/${imageId}`, { method: 'DELETE' }),
+}
+
+const listPath = (resource: 'orders' | 'quotes', status?: string) =>
+  `/admin/${resource}?limit=200${status ? `&status=${status}` : ''}`
+const patchStatus = (resource: 'orders' | 'quotes', code: string, status: string) => ({
+  path: `/admin/${resource}/${code}`,
+  init: { method: 'PATCH', body: JSON.stringify({ status }) },
+})
+
+export const listOrders = (status?: OrderStatus) =>
+  request<{ items: AdminOrder[]; total: number }>(listPath('orders', status))
+export const listQuotes = (status?: QuoteStatus) =>
+  request<{ items: AdminQuote[]; total: number }>(listPath('quotes', status))
+export function updateOrderStatus(code: string, status: OrderStatus) {
+  const { path, init } = patchStatus('orders', code, status)
+  return request<AdminOrder>(path, init)
+}
+export function updateQuoteStatus(code: string, status: QuoteStatus) {
+  const { path, init } = patchStatus('quotes', code, status)
+  return request<AdminQuote>(path, init)
 }

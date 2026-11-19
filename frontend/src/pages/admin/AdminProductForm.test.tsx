@@ -17,13 +17,11 @@ function renderForm() {
 
 describe('AdminProductForm', () => {
   it('shows client-side validation and does not submit invalid values', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => [{ id: 1, slug: 'sofas', name: 'Sofás' }],
-      })
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => [{ id: 1, slug: 'sofas', name: 'Sofás' }],
+    })
     vi.stubGlobal('fetch', fetchMock)
     renderForm()
     await screen.findByRole('option', { name: 'Sofás' })
