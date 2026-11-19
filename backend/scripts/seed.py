@@ -37,7 +37,8 @@ def seed(db: Session) -> int:
             # Las imágenes de catálogo viajan con el repo/imagen Docker (seed/images) y se sirven en /static.
             reference_image_key=f"seed/images/{p['image']}",
         )
-        prod.images.append(ProductImage(url=f"/static/products/{p['image']}", alt=p["name"], is_primary=True))
+        prod.images.append(ProductImage(url=f"/static/products/{p['image']}", alt=p["name"], is_primary=True,
+                                       is_reference=True))
         db.add(prod)
         created += 1
     db.commit()

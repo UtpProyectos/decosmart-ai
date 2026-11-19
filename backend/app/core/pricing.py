@@ -51,13 +51,18 @@ def estimate_chat(model: str, input_tokens: int = 0, cached_input_tokens: int = 
     return _q(cost)
 
 
-def estimate_image_edit(model: str, quality: str, size: str, usage: dict | None = None) -> Decimal:
+def estimate_image_edit(
+    model: str, quality: str, size: str, usage: dict | None = None, input_images: int = 2
+) -> Decimal:
     """Estimación conservadora: precio por imagen de salida + recargo por imágenes de entrada.
 
+    `input_images` = foto del ambiente + referencias del mueble (2 por defecto). El recargo base cubre las dos
+    primeras; cada referencia extra suma otro `IMAGE_INPUT_SURCHARGE_USD`.
     `usage` se acepta por compatibilidad (los tokens se guardan aparte en api_usage); no altera la estimación.
     """
     per_image = IMAGE_OUTPUT_PER_IMAGE.get((model, quality, size), DEFAULT_UNKNOWN_IMAGE_COST)
-    return _q(per_image + IMAGE_INPUT_SURCHARGE_USD)
+    extra_refs = max(0, (input_images or 0) - 2)
+    return _q(per_image + IMAGE_INPUT_SURCHARGE_USD * (1 + extra_refs))
 
 
 def estimate_image_cost() -> Decimal:

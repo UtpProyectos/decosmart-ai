@@ -196,6 +196,9 @@ def dims_text(p: Product) -> str:
 
 
 def product_to_public(p: Product, detail: bool = False) -> dict:
+    from app.services import product_images
+
+    primary = product_images.primary_image(p)
     data = {
         "id": p.id, "sku": p.sku, "slug": p.slug, "name": p.name,
         "category": {"slug": p.category.slug, "name": p.category.name} if p.category else None,
@@ -203,12 +206,24 @@ def product_to_public(p: Product, detail: bool = False) -> dict:
         "in_stock": p.stock > 0, "low_stock": is_low_stock(p),
         "dimensions": {"width_cm": p.width_cm, "height_cm": p.height_cm, "depth_cm": p.depth_cm},
         "colors": list(p.colors or []), "material": p.material, "style": p.style,
-        "room_types": list(p.room_types or []), "primary_image": p.primary_image,
+        "room_types": list(p.room_types or []),
+        "primary_image": product_images.image_url(primary) if primary else None,
+        "images": [product_images.image_to_dict(i) for i in product_images.sorted_images(p)],
     }
     if detail:
         data["description"] = p.description
-        data["images"] = [{"url": i.url, "alt": i.alt or p.name} for i in p.images]
         data["active"] = p.active
+    return data
+
+
+def product_to_admin(p: Product) -> dict:
+    """ProductAdmin (doc 04 v0.2) = producto público con detalle + active, images, created_at, updated_at."""
+    from app.core.timeutil import as_utc
+
+    data = product_to_public(p, detail=True)
+    data["category_slug"] = p.category.slug if p.category else None
+    data["created_at"] = as_utc(p.created_at).isoformat() if p.created_at else None
+    data["updated_at"] = as_utc(p.updated_at).isoformat() if p.updated_at else None
     return data
 
 

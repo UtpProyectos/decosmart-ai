@@ -2,9 +2,9 @@
 
 from datetime import date
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, StringConstraints, model_validator
 
 from app.schemas.common import Money, Schema
 
@@ -31,8 +31,14 @@ class Dimensions(Schema):
 
 
 class ImageOut(Schema):
+    id: int | None = None
     url: str
     alt: str | None = None
+    is_primary: bool = False
+    is_reference: bool = False
+    sort_order: int = 0
+    width: int | None = None
+    height: int | None = None
 
 
 class ProductOut(Schema):
@@ -52,11 +58,11 @@ class ProductOut(Schema):
     style: str | None
     room_types: list[str]
     primary_image: str | None
+    images: list[ImageOut] = []
 
 
 class ProductDetailOut(ProductOut):
     description: str
-    images: list[ImageOut]
     active: bool = True
 
 
@@ -155,10 +161,70 @@ class StatusPatch(BaseModel):
     status: str = Field(min_length=1, max_length=20)
 
 
+SLUG_PATTERN = r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
+ShortText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=50)]
+
+
+class ProductWrite(BaseModel):
+    """Alta de producto (doc 04 v0.2). `slug` opcional: se genera desde `name`."""
+
+    sku: str = Field(min_length=1, max_length=30, pattern=r"^[A-Za-z0-9][A-Za-z0-9_\-]*$")
+    category_slug: str = Field(min_length=1, max_length=50)
+    name: str = Field(min_length=1, max_length=150)
+    slug: str | None = Field(default=None, max_length=160, pattern=SLUG_PATTERN)
+    description: str = Field(min_length=1, max_length=5000)
+    price: Money = Field(gt=Decimal("0"), max_digits=10, decimal_places=2)
+    stock: int = Field(ge=0)
+    width_cm: int = Field(gt=0, le=10000)
+    height_cm: int = Field(gt=0, le=10000)
+    depth_cm: int = Field(gt=0, le=10000)
+    colors: list[ShortText] = Field(max_length=20)
+    material: str | None = Field(default=None, max_length=100)
+    style: str | None = Field(default=None, max_length=50)
+    room_types: list[ShortText] = Field(default_factory=list, max_length=10)
+    active: bool = True
+
+
+_REQUIRED_ON_PATCH = ("sku", "category_slug", "name", "slug", "description", "price", "stock", "width_cm",
+                      "height_cm", "depth_cm", "colors", "room_types", "active")
+
+
 class ProductPatch(BaseModel):
+    """`ProductWrite` parcial. Compatible con el PATCH v0.1 (stock/price/active)."""
+
+    sku: str | None = Field(default=None, min_length=1, max_length=30, pattern=r"^[A-Za-z0-9][A-Za-z0-9_\-]*$")
+    category_slug: str | None = Field(default=None, min_length=1, max_length=50)
+    name: str | None = Field(default=None, min_length=1, max_length=150)
+    slug: str | None = Field(default=None, max_length=160, pattern=SLUG_PATTERN)
+    description: str | None = Field(default=None, min_length=1, max_length=5000)
+    price: Money | None = Field(default=None, gt=Decimal("0"), max_digits=10, decimal_places=2)
     stock: int | None = Field(default=None, ge=0)
-    price: Money | None = Field(default=None, gt=Decimal("0"))
+    width_cm: int | None = Field(default=None, gt=0, le=10000)
+    height_cm: int | None = Field(default=None, gt=0, le=10000)
+    depth_cm: int | None = Field(default=None, gt=0, le=10000)
+    colors: list[ShortText] | None = Field(default=None, max_length=20)
+    material: str | None = Field(default=None, max_length=100)
+    style: str | None = Field(default=None, max_length=50)
+    room_types: list[ShortText] | None = Field(default=None, max_length=10)
     active: bool | None = None
+
+    @model_validator(mode="after")
+    def _no_null_required(self) -> "ProductPatch":
+        nulls = [f for f in _REQUIRED_ON_PATCH if f in self.model_fields_set and getattr(self, f) is None]
+        if nulls:
+            raise ValueError(f"Campos que no admiten null: {', '.join(nulls)}")
+        return self
+
+
+class ImagePatch(BaseModel):
+    alt: str | None = Field(default=None, max_length=200)
+    is_primary: bool | None = None
+    is_reference: bool | None = None
+    sort_order: int | None = Field(default=None, ge=0, le=10000)
+
+
+class ImageOrder(BaseModel):
+    image_ids: list[int] = Field(min_length=1, max_length=100)
 
 
 class CustomerPatch(BaseModel):
