@@ -12,11 +12,14 @@ from app.bot import keyboards, texts
 from app.core.config import get_settings
 from app.core.timeutil import now_utc
 from app.models import Customer, Message, Simulation
-from app.services import catalog, customers, orders, quotes
+from app.services import catalog, customers, orders, product_images, quotes
 from app.services.errors import log_error
 from app.simulation import service as simulations
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
+LIST_BATCH = 6  # productos con foto por listado
+ALBUM_MAX = 4  # fotos en el álbum de la ficha de detalle
+AGENT_CARDS_MAX = 3  # tarjetas con foto tras una respuesta del agente
 _processed_updates: OrderedDict[int, None] = OrderedDict()
 _chat_hits: dict[int, deque[float]] = defaultdict(deque)
 _rate_warned: set[int] = set()
@@ -76,15 +79,58 @@ def _show_catalog(db: Session, client, conv, chat_id: int) -> None:
     _send(db, client, conv, chat_id, "Elige una categoría:", keyboards.categories(catalog.list_categories(db)))
 
 
+def _primary_bytes(db: Session, product) -> bytes | None:
+    data = product_images.load_image_bytes(db, product_images.primary_image(product))
+    if data is None and product.reference_image_key:
+        path = (BACKEND_ROOT / product.reference_image_key).resolve()
+        if path.is_relative_to(BACKEND_ROOT) and path.is_file():
+            data = path.read_bytes()
+    return data
+
+
 def _show_product(db: Session, client, conv, chat_id: int, product) -> None:
     _context(conv, selected_product=product.sku)
     db.commit()
-    path = (BACKEND_ROOT / (product.reference_image_key or "")).resolve()
-    if product.reference_image_key and path.is_relative_to(BACKEND_ROOT) and path.is_file():
-        _send_photo(db, client, conv, chat_id, path.read_bytes(), texts.product_card(product),
-                    keyboards.product_actions(product.id))
+    card = texts.product_card(product)
+    images = product_images.sorted_images(product)
+    primary = product_images.primary_image(product)
+    if primary is not None:  # la principal primero en el álbum
+        images = [primary] + [i for i in images if i is not primary]
+    album = [b for b in (product_images.load_image_bytes(db, i) for i in images[:ALBUM_MAX]) if b]
+    if len(album) >= 2 and hasattr(client, "send_media_group"):
+        client.send_media_group(chat_id, [(data, product.name if n == 0 else None) for n, data in enumerate(album)])
+        _save(db, conv, "assistant", f"[álbum {len(album)} fotos] {product.name}")
+        _send(db, client, conv, chat_id, card, keyboards.product_actions(product.id))
+        return
+    data = album[0] if album else _primary_bytes(db, product)
+    if data:
+        _send_photo(db, client, conv, chat_id, data, card, keyboards.product_actions(product.id))
     else:
-        _send(db, client, conv, chat_id, texts.product_card(product), keyboards.product_actions(product.id))
+        _send(db, client, conv, chat_id, card, keyboards.product_actions(product.id))
+
+
+def _send_product_cards(db: Session, client, conv, chat_id: int, products, limit: int = LIST_BATCH) -> None:
+    """Una foto por producto (principal) con caption corto y botones Ver detalle · Simular · Cotizar."""
+    for product in list(products)[:limit]:
+        caption = texts.product_caption(product)
+        markup = keyboards.product_card_actions(product.id)
+        data = _primary_bytes(db, product)
+        if data:
+            _send_photo(db, client, conv, chat_id, data, caption, markup)
+        else:
+            _send(db, client, conv, chat_id, texts.product_card(product), markup)
+
+
+def _show_category(db: Session, client, conv, chat_id: int, slug: str) -> None:
+    products = catalog.search_products(db, category=slug)
+    if not products:
+        _send(db, client, conv, chat_id, "No hay productos disponibles en esta categoría.",
+              keyboards.categories(catalog.list_categories(db)))
+        return
+    _send_product_cards(db, client, conv, chat_id, products)
+    rest = products[LIST_BATCH:]
+    if rest:
+        _send(db, client, conv, chat_id, "Más productos de esta categoría:", keyboards.products(rest))
 
 
 def _begin_simulation(db: Session, client, conv, customer, chat_id: int, product) -> None:
@@ -165,8 +211,7 @@ def _callback(db: Session, client, conv, customer, chat_id: int, callback: dict)
     if data == "catalog":
         _show_catalog(db, client, conv, chat_id)
     elif data.startswith("category:"):
-        products = catalog.search_products(db, category=data.split(":", 1)[1])
-        _send(db, client, conv, chat_id, "Selecciona un producto:", keyboards.products(products))
+        _show_category(db, client, conv, chat_id, data.split(":", 1)[1])
     elif data.startswith("product:"):
         product = catalog.get_product(db, data.split(":", 1)[1])
         if product:
@@ -298,7 +343,12 @@ def _text(db: Session, client, conv, customer, chat_id: int, message: dict) -> N
         reply = run_agent_turn(db, conv, text)
         _send(db, client, conv, chat_id, reply.text, reply.buttons)
         for action in reply.actions:
-            if action["type"] == "start_simulation":
+            if action["type"] == "show_products":
+                ids = action.get("product_ids") or []
+                found = {p.id: p for p in (catalog.get_product(db, i) for i in ids[:AGENT_CARDS_MAX]) if p}
+                _send_product_cards(db, client, conv, chat_id, [found[i] for i in ids if i in found],
+                                    limit=AGENT_CARDS_MAX)
+            elif action["type"] == "start_simulation":
                 _begin_simulation(db, client, conv, customer, chat_id,
                                   catalog.get_product(db, action["product_id"]))
 

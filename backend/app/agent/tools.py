@@ -77,11 +77,24 @@ def _record(db: Session, ctx: ToolContext, kind: str, product=None, payload=None
                              channel="telegram", payload=payload or {})
 
 
+def _show(ctx: ToolContext, products) -> None:
+    """Pide al bot enviar las tarjetas con foto de estos productos tras la respuesta de texto."""
+    ids = [p.id for p in products]
+    if not ids:
+        return
+    existing = next((a for a in ctx.actions if a["type"] == "show_products"), None)
+    if existing is None:
+        ctx.actions.append({"type": "show_products", "product_ids": ids})
+    else:
+        existing["product_ids"] += [i for i in ids if i not in existing["product_ids"]]
+
+
 def dispatch(db: Session, name: str, args: dict, ctx: ToolContext) -> dict:
     if name == "search_products":
         products = catalog.search_products(db, **args, limit=10)
         for p in products:
             _record(db, ctx, "catalog", p, args)
+        _show(ctx, products)
         return _products(products)
     if name == "get_product":
         p = catalog.get_product(db, args["product_ref"])
@@ -99,6 +112,7 @@ def dispatch(db: Session, name: str, args: dict, ctx: ToolContext) -> dict:
         products = catalog.recommend(db, **args)
         for p in products:
             _record(db, ctx, "recommendation", p, args)
+        _show(ctx, products)
         return _products(products)
     if name in {"select_product", "start_simulation"}:
         ref = args.get("product_ref") or (ctx.conversation.context or {}).get("selected_product")

@@ -43,6 +43,26 @@ class TelegramClient:
             data["reply_markup"] = json.dumps(reply_markup, ensure_ascii=False)
         return self._post("sendPhoto", data=data, files={"photo": ("image.jpg", photo_bytes, "image/jpeg")})
 
+    def send_media_group(self, chat_id, photos: list[tuple[bytes, str | None]]):
+        """Álbum de 2..10 fotos (sendMediaGroup, multipart con `attach://photoN`). Con 1 foto usa sendPhoto."""
+        import json
+
+        photos = list(photos)[:10]
+        if not photos:
+            raise ValueError("send_media_group requiere al menos una foto")
+        if len(photos) == 1:
+            return [self.send_photo(chat_id, photos[0][0], photos[0][1] or "")]
+        media, files = [], {}
+        for n, (data, caption) in enumerate(photos):
+            name = f"photo{n}"
+            item = {"type": "photo", "media": f"attach://{name}"}
+            if caption:
+                item["caption"] = caption[:1024]
+            media.append(item)
+            files[name] = (f"{name}.jpg", data, "image/jpeg")
+        return self._post("sendMediaGroup", data={"chat_id": str(chat_id),
+                                                   "media": json.dumps(media, ensure_ascii=False)}, files=files)
+
     def answer_callback_query(self, callback_query_id: str, text: str | None = None):
         data = {"callback_query_id": callback_query_id}
         if text:

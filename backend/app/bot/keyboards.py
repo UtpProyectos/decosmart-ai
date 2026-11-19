@@ -26,6 +26,13 @@ def product_actions(product_id: int) -> dict:
                                 [_button("Ver más", f"product:{product_id}")]]}
 
 
+def product_card_actions(product_id: int) -> dict:
+    """Botones de la tarjeta de producto en listados (doc 04 v0.2, sección Telegram)."""
+    return {"inline_keyboard": [[_button("Ver detalle", f"product:{product_id}"),
+                                 _button("Simular", f"simulate:{product_id}"),
+                                 _button("Cotizar", f"quote:{product_id}")]]}
+
+
 def consent() -> dict:
     return {"inline_keyboard": [[_button("Acepto", "consent:yes"), _button("Cancelar", "sim:cancel")]]}
 
