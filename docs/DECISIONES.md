@@ -111,6 +111,12 @@
 - **Endpoints admin extra**: `GET /admin/products` y `POST /admin/jobs/expire-quotes`.
 - **Storage S3**: compatible con la API S3 de Supabase Storage (path-style, `region_name=S3_REGION`), con URLs prefirmadas.
 
+### ADR-011 — `ADMIN_API_KEY` opcional (simplicidad de MVP académico)
+
+- **Contexto**: es una tarea universitaria, no un sistema para un cliente real; el equipo prefiere menos configuración.
+- **Decisión**: si `ADMIN_API_KEY` está vacío, `/admin/*` no exige clave (se registra una advertencia al iniciar). Si se define, se exige `X-Admin-Key` y el dashboard usa la misma en `DASHBOARD_ADMIN_KEY`.
+- **Consecuencias**: (+) cero configuración. (−) en Render los datos admin quedan accesibles a quien conozca la URL; para la demo pública se recomienda definirla (un solo valor).
+
 ### Pendientes de decidir (detectados en la documentación)
 
 - Idempotencia del resumen diario cuando lo disparan APScheduler y GitHub cron el mismo día (propuesta: omitir si ya existe evento `summary.daily` con la misma fecha).

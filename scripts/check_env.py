@@ -20,7 +20,7 @@ from urllib.parse import urlparse
 
 INSECURE_DEFAULTS = {"change-me", "change-me-admin-key", "change-me-webhook-secret", "changeme", "secret", "password"}
 
-ALWAYS_REQUIRED = ("DATABASE_URL", "ADMIN_API_KEY", "PUBLIC_BASE_URL", "FRONTEND_ORIGIN")
+ALWAYS_REQUIRED = ("DATABASE_URL", "PUBLIC_BASE_URL", "FRONTEND_ORIGIN")
 SECRETS = ("ADMIN_API_KEY", "TELEGRAM_WEBHOOK_SECRET", "DASHBOARD_ADMIN_KEY", "DASHBOARD_PASSWORD")
 S3_REQUIRED = ("S3_ENDPOINT_URL", "S3_BUCKET", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY")
 
@@ -61,15 +61,17 @@ def check(env: dict[str, str]) -> tuple[list[str], list[str]]:
     for key in ALWAYS_REQUIRED:
         if not get(key):
             errors.append(f"{key} es obligatoria y está vacía.")
+    if not get("ADMIN_API_KEY"):
+        warnings.append("ADMIN_API_KEY vacía: /admin/* queda sin clave (permitido en el MVP, ver ADR-011).")
 
     db = get("DATABASE_URL")
     if db:
         if db.startswith("sqlite"):
-            errors.append("DATABASE_URL apunta a SQLite; en producción se usa PostgreSQL (Neon).")
+            errors.append("DATABASE_URL apunta a SQLite; en producción se usa PostgreSQL (Supabase).")
         elif "@db:" in db or "localhost" in db or "127.0.0.1" in db:
             errors.append("DATABASE_URL apunta a una base local (db/localhost).")
         elif "sslmode=require" not in db:
-            warnings.append("DATABASE_URL sin sslmode=require (Neon lo exige).")
+            warnings.append("DATABASE_URL sin sslmode=require (Supabase lo exige).")
 
     for key in SECRETS:
         value = get(key)

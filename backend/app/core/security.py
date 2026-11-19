@@ -13,6 +13,9 @@ from app.core.errors import AppError
 
 def require_admin(x_admin_key: str | None = Header(default=None, alias="X-Admin-Key")) -> None:
     expected = get_settings().admin_api_key
+    if not expected:
+        # MVP académico: sin ADMIN_API_KEY los endpoints admin quedan abiertos (ver docs/DECISIONES.md).
+        return
     if not x_admin_key or not hmac.compare_digest(x_admin_key.encode(), expected.encode()):
         raise AppError("UNAUTHORIZED", "No autorizado", 401)
 

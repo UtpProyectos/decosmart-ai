@@ -84,3 +84,14 @@ def test_engine_kwargs():
     pg = engine_kwargs("postgresql+psycopg://u:p@host:5432/db?sslmode=require")
     assert pg == {"pool_pre_ping": True, "pool_recycle": 300}
     assert "pool_recycle" not in engine_kwargs("sqlite:///./x.db")
+
+
+def test_admin_open_when_key_empty(client, monkeypatch):
+    from app.core.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "admin_api_key", "")
+    assert client.get("/admin/metrics/summary").status_code == 200
+
+
+def test_admin_requires_key_when_set(client):
+    assert client.get("/admin/metrics/summary").status_code == 401

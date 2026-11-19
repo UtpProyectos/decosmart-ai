@@ -163,7 +163,7 @@ AUTO_MIGRATE=true                   # alembic upgrade head al iniciar
 AUTO_SEED=true                      # seed idempotente al iniciar si no hay productos
 
 # --- Seguridad ---
-ADMIN_API_KEY=change-me-admin-key
+ADMIN_API_KEY=                      # opcional: vacío = /admin/* sin clave (ADR-011)
 RATE_LIMIT_PER_MIN=60
 
 # --- IA ---
