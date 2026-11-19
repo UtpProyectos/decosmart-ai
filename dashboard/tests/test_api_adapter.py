@@ -181,3 +181,38 @@ def test_resolve_url():
     assert api.resolve_url("/media/a.jpg") == "http://api.test/media/a.jpg"
     assert api.resolve_url("https://r2.example/a.jpg?sig=1") == "https://r2.example/a.jpg?sig=1"
     assert api.resolve_url(None) is None
+
+
+def test_failed_fetch_is_not_cached(monkeypatch):
+    """Tras una caída, la primera llamada correcta devuelve datos frescos sin esperar el TTL."""
+
+    def down(*args, **kwargs):
+        raise requests.ConnectionError("down")
+
+    api.clear_cache()
+    try:
+        monkeypatch.setattr(api.requests, "get", down)
+        first = api.get_summary()
+        assert not first.ok and "No se pudo conectar" in first.error
+        assert api.get_image_bytes("/media/x.jpg") is None
+
+        monkeypatch.setattr(
+            api.requests,
+            "get",
+            fake_get(
+                {
+                    "/admin/metrics/summary": FakeResponse(200, SUMMARY_JSON),
+                    "/media/x.jpg": FakeResponse(200, None, content_type="image/jpeg"),
+                }
+            ),
+        )
+        second = api.get_summary()
+        assert second.ok and second.data["conversations_total"] == 42
+        assert api.get_image_bytes("/media/x.jpg") == b"img"
+
+        # Los resultados correctos sí quedan cacheados (ttl=30 s).
+        monkeypatch.setattr(api.requests, "get", down)
+        assert api.get_summary().ok
+        assert api.get_image_bytes("/media/x.jpg") == b"img"
+    finally:
+        api.clear_cache()

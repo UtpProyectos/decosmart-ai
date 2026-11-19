@@ -15,11 +15,12 @@ AppTest = pytest.importorskip("streamlit.testing.v1").AppTest
 
 PAGES = [
     "app.py",
-    "pages/1_Conversaciones.py",
-    "pages/2_Productos.py",
-    "pages/3_Simulaciones.py",
-    "pages/4_Costos_API.py",
-    "pages/5_Eventos_y_Errores.py",
+    "app_pages/0_Resumen.py",
+    "app_pages/1_Conversaciones.py",
+    "app_pages/2_Productos.py",
+    "app_pages/3_Simulaciones.py",
+    "app_pages/4_Costos_API.py",
+    "app_pages/5_Eventos_y_Errores.py",
 ]
 
 SAMPLE = {
@@ -104,6 +105,11 @@ def env(monkeypatch):
     api.clear_cache()
 
 
+def kpi_cards(at: "AppTest") -> int:
+    """Tarjetas KPI (HTML propio) visibles en la página."""
+    return sum(md.value.count('class="ds-card ds-kpi"') for md in at.markdown)
+
+
 def run(page: str) -> "AppTest":
     at = AppTest.from_file(str(DASHBOARD / page), default_timeout=30)
     at.run()
@@ -119,6 +125,22 @@ def test_page_renders_with_api_down(monkeypatch, page):
 
 
 @pytest.mark.parametrize("page", PAGES)
+def test_api_down_shows_single_banner_with_retry(monkeypatch, page):
+    monkeypatch.setattr(api.requests, "get", down_get)
+    at = run(page)
+    assert len([w for w in at.warning if "No se pudo conectar" in w.value]) == 1
+    retry = [b for b in at.button if b.key == "ds_retry"]
+    assert len(retry) == 1
+
+    # La API vuelve: "Reintentar" limpia la caché y la página deja de mostrar el banner.
+    monkeypatch.setattr(api.requests, "get", sample_get)
+    retry[0].click()
+    at.run()
+    assert not at.exception
+    assert not any("No se pudo conectar" in w.value for w in at.warning)
+
+
+@pytest.mark.parametrize("page", PAGES)
 def test_page_renders_with_sample_data(monkeypatch, page):
     monkeypatch.setattr(api.requests, "get", sample_get)
     at = run(page)
@@ -130,9 +152,9 @@ def test_password_gate(monkeypatch):
     monkeypatch.setenv("DASHBOARD_PASSWORD", "s3cret-pass")
     at = run("app.py")
     assert not at.exception
-    assert len(at.metric) == 0  # nada visible antes de autenticarse
+    assert len(at.metric) == 0 and kpi_cards(at) == 0  # nada visible antes de autenticarse
     at.text_input[0].input("s3cret-pass")
     at.button[0].click()
     at.run()
     assert not at.exception
-    assert len(at.metric) > 0
+    assert kpi_cards(at) == 8  # las 8 tarjetas del Resumen
