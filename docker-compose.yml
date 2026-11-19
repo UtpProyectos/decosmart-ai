@@ -1,8 +1,12 @@
 name: decosmart
 
 services:
+  # Postgres local OPCIONAL (por defecto se usa Supabase desde .env).
+  # Para usarlo: DATABASE_URL=postgresql+psycopg://decosmart:decosmart@db:5432/decosmart
+  # y `docker compose --profile localdb up --build`
   db:
     image: postgres:16-alpine
+    profiles: ["localdb"]
     environment:
       POSTGRES_USER: decosmart
       POSTGRES_PASSWORD: decosmart
@@ -21,11 +25,7 @@ services:
     build: ./backend
     env_file: .env
     environment:
-      DATABASE_URL: postgresql+psycopg://decosmart:decosmart@db:5432/decosmart
       LOCAL_STORAGE_PATH: /app/storage
-    depends_on:
-      db:
-        condition: service_healthy
     ports:
       - "8000:8000"
     volumes:
