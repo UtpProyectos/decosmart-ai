@@ -163,3 +163,25 @@ def test_telegram_client_raises_on_ok_false():
         return_value=Response(200, json={"ok": False, "description": "bad"}))
     with pytest.raises(TelegramError, match="bad"):
         TelegramClient("TOKEN").delete_webhook()
+
+
+def test_group_messages_are_ignored(db):
+    from sqlalchemy import func, select
+
+    from app.bot.handlers import handle_update
+    from app.models import Customer
+
+    class Spy:
+        def __init__(self):
+            self.calls = []
+
+        def __getattr__(self, name):
+            return lambda *a, **k: self.calls.append((name, a, k))
+
+    spy = Spy()
+    update = {"update_id": 987654, "message": {"message_id": 1, "text": "@bot hola",
+              "chat": {"id": -1001234567890, "type": "supergroup", "title": "Equipo"},
+              "from": {"id": 1, "first_name": "Ana"}}}
+    handle_update(db, update, spy)
+    assert spy.calls == []
+    assert db.scalar(select(func.count(Customer.id)).where(Customer.telegram_chat_id < 0)) == 0

@@ -316,6 +316,10 @@ def handle_update(db: Session, update: dict, client) -> None:
     try:
         if chat_id is None:
             return
+        # Solo se atiende a clientes por chat privado; los grupos (p. ej. el de notificaciones
+        # del equipo, ADMIN_TELEGRAM_CHAT_ID) se ignoran para no crearlos como clientes.
+        if chat.get("type", "private") != "private":
+            return
         existing = db.scalar(select(Customer).where(Customer.telegram_chat_id == chat_id))
         if update_id in _processed_updates and existing is not None:
             return
