@@ -1,17 +1,23 @@
 """Única lectura de variables de entorno. Ver docs/CODEX_HANDOFF.md §4."""
 
 import logging
+import os
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
-from pydantic import model_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 log = logging.getLogger(__name__)
 
+# El .env vive en la raíz del repo; también se acepta uno en el cwd. En tests no se lee ninguno.
+ROOT_ENV = Path(__file__).resolve().parents[3] / ".env"
+ENV_FILES: tuple[str, ...] = () if os.environ.get("APP_ENV") == "test" else (str(ROOT_ENV), ".env")
+
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(env_file=ENV_FILES, env_file_encoding="utf-8", extra="ignore")
 
     # General
     app_env: Literal["development", "production", "test"] = "development"
@@ -85,6 +91,15 @@ class Settings(BaseSettings):
     timezone: str = "America/Lima"
     scheduler_enabled: bool = True
     n8n_webhook_url: str = ""
+
+    @field_validator("database_url")
+    @classmethod
+    def _normalize_db_url(cls, v: str) -> str:
+        # Supabase entrega "postgresql://..."; SQLAlchemy necesita el driver psycopg 3 explícito.
+        for prefix in ("postgresql://", "postgres://"):
+            if v.startswith(prefix):
+                return "postgresql+psycopg://" + v[len(prefix):]
+        return v
 
     @model_validator(mode="after")
     def _coherence(self) -> "Settings":

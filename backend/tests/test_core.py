@@ -95,3 +95,10 @@ def test_admin_open_when_key_empty(client, monkeypatch):
 
 def test_admin_requires_key_when_set(client):
     assert client.get("/admin/metrics/summary").status_code == 401
+
+
+def test_database_url_normalized_for_psycopg():
+    from app.core.config import Settings
+
+    s = Settings(database_url="postgresql://u:p@host:5432/postgres?sslmode=require")
+    assert s.database_url.startswith("postgresql+psycopg://")

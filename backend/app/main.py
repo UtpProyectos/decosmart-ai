@@ -55,6 +55,9 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     settings = get_settings()
     logging.basicConfig(level=settings.log_level)
+    # httpx registra la URL completa, que incluye el token del bot: no loggear a nivel INFO.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
     app = FastAPI(title="DecoSmart AI API", version=settings.app_version, lifespan=lifespan)
     app.state.startup_hooks = []
     app.state.shutdown_hooks = []

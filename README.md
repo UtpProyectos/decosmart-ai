@@ -7,6 +7,8 @@ Plataforma inteligente de venta de muebles con asistente IA en Telegram, simulac
 - **Dashboard**: Streamlit
 - **DevOps**: Docker Compose, GitHub Actions, Render
 
+Comandos para ejecutar: [`COMANDOS.md`](COMANDOS.md).
+
 Toda la documentación está en [`docs/`](docs/00-indice.md). El documento de implementación es [`docs/CODEX_HANDOFF.md`](docs/CODEX_HANDOFF.md).
 
 ## Arranque rápido (local, modo MOCK sin costo de API)
