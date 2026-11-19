@@ -88,6 +88,17 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _coherence(self) -> "Settings":
+        if self.app_env == "production":
+            insecure = [
+                name
+                for name, value in (
+                    ("ADMIN_API_KEY", self.admin_api_key),
+                    ("TELEGRAM_WEBHOOK_SECRET", self.telegram_webhook_secret),
+                )
+                if not value or value.startswith("change-me")
+            ]
+            if insecure:
+                raise ValueError(f"APP_ENV=production con secretos por defecto: {', '.join(insecure)}")
         if self.ai_mode == "live" and not self.openai_api_key:
             log.warning("AI_MODE=live sin OPENAI_API_KEY: se fuerza AI_MODE=mock")
             self.ai_mode = "mock"
