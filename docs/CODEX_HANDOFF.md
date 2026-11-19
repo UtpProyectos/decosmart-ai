@@ -117,7 +117,7 @@ decosmart-ai/
     ├── requirements.txt
     ├── app.py                 # página principal (KPIs)
     ├── api.py                 # cliente HTTP con X-Admin-Key, st.cache_data(ttl=30)
-    └── pages/ 1_Conversaciones.py, 2_Productos.py, 3_Simulaciones.py, 4_Costos_API.py, 5_Eventos_y_Errores.py
+    └── app_pages/ 0_Resumen.py, 1_Conversaciones.py, 2_Productos.py, 3_Simulaciones.py, 4_Costos_API.py, 5_Eventos_y_Errores.py  (app.py = router st.navigation)
 ```
 
 ---
