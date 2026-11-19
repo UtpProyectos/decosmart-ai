@@ -68,14 +68,14 @@ class MockProvider:
             return "Listo. Continuemos con el siguiente paso."
         return "No encontré un producto real que coincida. Puedo mostrarte el catálogo."
 
-    def edit_image(self, room: bytes, reference: bytes | None, prompt: str, size: str, quality: str) -> ImageResult:
+    def edit_image(self, room: bytes, references: list[bytes], prompt: str, size: str, quality: str) -> ImageResult:
         self._record("image_edit")
         image = Image.open(BytesIO(room)).convert("RGB")
         band = max(70, image.height // 9)
         canvas = Image.new("RGB", (image.width, image.height + band), "#1f2937")
         canvas.paste(image, (0, 0))
-        if reference:
-            ref = Image.open(BytesIO(reference)).convert("RGB")
+        if references:
+            ref = Image.open(BytesIO(references[0])).convert("RGB")
             ref.thumbnail((max(80, image.width // 4), max(60, image.height // 4)), Image.Resampling.LANCZOS)
             canvas.paste(ref, (image.width - ref.width - 12, image.height - ref.height - 12))
         match = re.search(r"- Producto: ([^(\n]+)", prompt)

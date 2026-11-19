@@ -32,8 +32,9 @@ class SpyProvider:
         self.calls = 0
         self.fail = fail
 
-    def edit_image(self, room, reference, prompt, size, quality):
+    def edit_image(self, room, references, prompt, size, quality):
         self.calls += 1
+        self.references = list(references)
         if self.fail:
             raise RuntimeError("provider down")
         return ImageResult(room, {})

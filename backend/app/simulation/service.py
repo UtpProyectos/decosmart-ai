@@ -3,7 +3,6 @@
 import re
 from dataclasses import dataclass
 from hashlib import sha256
-from pathlib import Path
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -16,11 +15,10 @@ from app.core.config import get_settings
 from app.core.timeutil import local_day_bounds_utc, now_utc, today_local
 from app.imaging.pipeline import optimize_input, optimize_output
 from app.models import Customer, Simulation, SimulationRating
-from app.services import budget
+from app.services import budget, product_images
 from app.services.errors import log_error
 from app.storage import get_storage
 
-BACKEND_ROOT = Path(__file__).resolve().parents[2]
 _DIMS = re.compile(r"^\s*(\d+(?:[.,]\d+)?)\s*[x×*,]\s*(\d+(?:[.,]\d+)?)"
                    r"(?:\s*[x×*,]\s*(\d+(?:[.,]\d+)?))?\s*$", re.I)
 
@@ -63,7 +61,8 @@ def _quota_reason(db: Session, customer: Customer) -> str | None:
     if daily >= settings.max_simulations_per_day:
         return "daily"
     if settings.ai_mode == "live" and not budget.can_spend(
-            db, pricing.estimate_image_edit(settings.openai_image_model, settings.image_quality, settings.image_size)):
+            db, pricing.estimate_image_edit(settings.openai_image_model, settings.image_quality, settings.image_size,
+                                            input_images=1 + max(1, settings.simulation_max_reference_images))):
         return "budget"
     return None
 
@@ -111,11 +110,20 @@ def width_warning(sim: Simulation) -> str | None:
     return None
 
 
-def _cache_key(sim: Simulation, variant: int) -> str:
+def _references(db: Session, sim: Simulation) -> list[bytes]:
+    if not get_settings().simulation_use_product_reference:
+        return []
+    return product_images.reference_images(db, sim.product)
+
+
+def _cache_key(sim: Simulation, variant: int, references: list[bytes] | None = None) -> str:
     s = get_settings()
+    refs = references or []
+    # Huella de las referencias: cambian si el admin marca/reordena/sube otras imágenes del mueble.
+    ref_digest = sha256(b"".join(sha256(r).digest() for r in refs)).hexdigest()[:16] if refs else ""
     raw = "|".join(str(x or "") for x in (sim.input_hash, sim.product_id, sim.room_width_cm,
                     sim.room_height_cm, sim.room_depth_cm, sim.placement_hint, s.openai_image_model,
-                    s.image_size, s.image_quality, variant))
+                    s.image_size, s.image_quality, variant, f"refs={len(refs)}", ref_digest))
     return sha256(raw.encode()).hexdigest()
 
 
@@ -134,7 +142,8 @@ def run(db: Session, simulation_id: int, *, variant: int = 0) -> SimulationResul
         return _blocked(db, sim, reason)
     if not sim.input_key or not sim.input_hash or not sim.room_width_cm or not sim.room_height_cm:
         raise ValueError("La simulación no está lista para generarse")
-    sim.cache_key = _cache_key(sim, variant)
+    references = _references(db, sim)
+    sim.cache_key = _cache_key(sim, variant, references)
     cached = db.scalar(select(Simulation).where(Simulation.status == "completed",
                        Simulation.cache_key == sim.cache_key, Simulation.id != sim.id).order_by(Simulation.id))
     storage = get_storage()
@@ -166,12 +175,7 @@ def run(db: Session, simulation_id: int, *, variant: int = 0) -> SimulationResul
             if not provider.moderate(sim.placement_hint):
                 sim.placement_hint = "contra la pared principal"
                 sim.prompt = build_simulation_prompt(sim.product, sim)
-        reference = None
-        if settings.simulation_use_product_reference and sim.product.reference_image_key:
-            path = (BACKEND_ROOT / sim.product.reference_image_key).resolve()
-            if path.is_relative_to(BACKEND_ROOT) and path.is_file():
-                reference = path.read_bytes()
-        result = provider.edit_image(room, reference, sim.prompt, size, settings.image_quality)
+        result = provider.edit_image(room, references, sim.prompt, size, settings.image_quality)
         if settings.store_full_output:
             sim.output_full_key = f"customers/{sim.customer_id}/outputs/{sim.id}-full.jpg"
             storage.put(sim.output_full_key, result.data, "image/jpeg")
@@ -180,7 +184,8 @@ def run(db: Session, simulation_id: int, *, variant: int = 0) -> SimulationResul
         storage.put(sim.output_key, output, "image/jpeg" if settings.output_format == "JPEG" else "image/webp")
         sim.output_bytes = meta.bytes
         sim.cost_usd = (pricing.estimate_image_edit(settings.openai_image_model, settings.image_quality, size,
-                                                     result.usage) if settings.ai_mode == "live" else 0)
+                                                     result.usage, input_images=1 + len(references))
+                        if settings.ai_mode == "live" else 0)
         sim.status, sim.completed_at, sim.error_message = "completed", now_utc(), None
         sim.customer.simulations_used = (sim.customer.simulations_used or 0) + 1
         emit(db, "simulation.completed", "simulation", sim.id, sim.customer_id, {"reused": False})

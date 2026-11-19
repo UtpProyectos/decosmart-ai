@@ -31,5 +31,21 @@ def product_card(product) -> str:
             f"Colores: {colors}\nStock: {product.stock}")
 
 
+def stock_text(product) -> str:
+    from app.services.catalog import is_low_stock
+
+    if product.stock <= 0:
+        return "Agotado"
+    if is_low_stock(product):
+        return f"Últimas {product.stock} unidades"
+    return f"Stock: {product.stock}"
+
+
+def product_caption(product) -> str:
+    """Caption corto para listados con foto."""
+    return (f"{product.name}\nUS$ {product.price:.2f} · {product.width_cm}×{product.height_cm}×{product.depth_cm} cm"
+            f" · {stock_text(product)}")
+
+
 def quote_text(quote) -> str:
     return format_quote_text(quote)

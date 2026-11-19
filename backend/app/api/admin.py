@@ -3,18 +3,19 @@
 from datetime import date
 from typing import Literal
 
-from fastapi import APIRouter, Depends, FastAPI, Query
+from fastapi import APIRouter, Depends, FastAPI, File, Form, Query, Response, UploadFile
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.errors import AppError
 from app.core.security import require_admin
 from app.core.timeutil import as_utc
-from app.models import Customer, ErrorLog, Event, Order, Product, Quote, Simulation
-from app.schemas.api import CustomerPatch, ProductPatch, StatusPatch
+from app.models import Category, Customer, ErrorLog, Event, Order, Quote, Simulation
+from app.schemas.api import CustomerPatch, ImageOrder, ImagePatch, ProductPatch, ProductWrite, StatusPatch
 from app.schemas.common import fmt_money
-from app.services import catalog, metrics, orders, quotes
+from app.services import catalog, metrics, orders, product_admin, product_images, quotes
 from app.storage import get_storage
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin)])
@@ -203,28 +204,83 @@ def patch_order(code: str, body: StatusPatch, db: Session = Depends(get_db)):
     return _order_admin(orders.get_order_or_404(db, code))
 
 
+# ---------- Productos e imágenes (doc 04, Ampliación v0.2) ----------
+@router.get("/categories")
+def list_categories_admin(db: Session = Depends(get_db)):
+    return [{"id": c.id, "slug": c.slug, "name": c.name}
+            for c in db.scalars(select(Category).order_by(Category.id)).all()]
+
+
 @router.get("/products")
-def list_products_admin(db: Session = Depends(get_db)):
-    rows = db.scalars(select(Product).options(selectinload(Product.images), selectinload(Product.category))
-                      .order_by(Product.id)).all()
-    return {"items": [catalog.product_to_public(p, detail=True) for p in rows], "total": len(rows)}
+def list_products_admin(include_inactive: bool = True, db: Session = Depends(get_db)):
+    rows = product_admin.list_products(db, include_inactive=include_inactive)
+    return {"items": [catalog.product_to_admin(p) for p in rows], "total": len(rows)}
+
+
+@router.get("/products/{product_id}")
+def get_product_admin(product_id: int, db: Session = Depends(get_db)):
+    return catalog.product_to_admin(product_admin.get_product_admin(db, product_id))
+
+
+@router.post("/products", status_code=201)
+def create_product(body: ProductWrite, db: Session = Depends(get_db)):
+    return catalog.product_to_admin(product_admin.create_product(db, body.model_dump()))
 
 
 @router.patch("/products/{product_id}")
 def patch_product(product_id: int, body: ProductPatch, db: Session = Depends(get_db)):
-    p = catalog.get_product(db, product_id, active_only=False)
-    if p is None:
-        raise AppError("PRODUCT_NOT_FOUND", "Producto no encontrado", 404)
-    if body.stock is not None:
-        p.stock = body.stock
-    if body.price is not None:
-        p.price = body.price
-    if body.active is not None:
-        p.active = body.active
-    db.flush()
-    catalog.evaluate_low_stock(db, p)
-    db.commit()
-    return catalog.product_to_public(p, detail=True)
+    p = product_admin.get_product_admin(db, product_id)
+    changes = body.model_dump(exclude_unset=True)
+    return catalog.product_to_admin(product_admin.update_product(db, p, changes))
+
+
+@router.delete("/products/{product_id}", status_code=204)
+def delete_product(product_id: int, db: Session = Depends(get_db)):
+    product_admin.deactivate_product(db, product_admin.get_product_admin(db, product_id))
+    return Response(status_code=204)
+
+
+def _images_out(p) -> dict:
+    return {"images": [product_images.image_to_dict(i) for i in product_images.sorted_images(p)]}
+
+
+@router.post("/products/{product_id}/images", status_code=201)
+def upload_product_images(
+    product_id: int,
+    files: list[UploadFile] = File(...),
+    alt: str | None = Form(default=None, max_length=200),
+    is_reference: bool = Form(default=False),
+    db: Session = Depends(get_db),
+):
+    p = product_admin.get_product_admin(db, product_id)
+    limit = get_settings().max_upload_mb * 1024 * 1024
+    payload = []
+    for f in files:
+        raw = f.file.read(limit + 1)
+        payload.append((f.filename or "imagen", raw, f.content_type))
+    created = product_admin.add_images(db, p, payload, alt=alt, is_reference=is_reference)
+    return {"images": [product_images.image_to_dict(i) for i in created]}
+
+
+@router.patch("/products/{product_id}/images/{image_id}")
+def patch_product_image(product_id: int, image_id: int, body: ImagePatch, db: Session = Depends(get_db)):
+    p = product_admin.get_product_admin(db, product_id)
+    img = product_admin.update_image(db, p, image_id, body.model_dump(exclude_unset=True))
+    return product_images.image_to_dict(img)
+
+
+@router.put("/products/{product_id}/images/order")
+def reorder_product_images(product_id: int, body: ImageOrder, db: Session = Depends(get_db)):
+    p = product_admin.get_product_admin(db, product_id)
+    product_admin.reorder_images(db, p, body.image_ids)
+    return _images_out(p)
+
+
+@router.delete("/products/{product_id}/images/{image_id}", status_code=204)
+def delete_product_image(product_id: int, image_id: int, db: Session = Depends(get_db)):
+    p = product_admin.get_product_admin(db, product_id)
+    product_admin.delete_image(db, p, image_id)
+    return Response(status_code=204)
 
 
 @router.patch("/customers/{customer_id}")

@@ -123,6 +123,18 @@
 - **Decisión**: si `ADMIN_API_KEY` está vacío, `/admin/*` no exige clave (se registra una advertencia al iniciar). Si se define, se exige `X-Admin-Key` y el dashboard usa la misma en `DASHBOARD_ADMIN_KEY`.
 - **Consecuencias**: (+) cero configuración. (−) en Render los datos admin quedan accesibles a quien conozca la URL; para la demo pública se recomienda definirla (un solo valor).
 
+### Gestión de productos e imágenes (`feat/product-admin`, v0.2)
+
+- **`GET /api/images/{id}` sin rate limit**: vive en el router de `media` y no en el de `/api/*`, porque una página de catálogo pide muchas imágenes a la vez y el límite de 60 por minuto las bloquearía.
+- **Slug automático con sufijo**: si el slug que se genera desde `name` ya existe, se agrega `-2`, `-3`, etc. `SLUG_TAKEN` (409) solo se devuelve cuando el admin envía un `slug` explícito que ya está ocupado. El SKU se compara sin distinguir mayúsculas.
+- **Subida todo o nada**: se validan y optimizan todos los archivos antes de escribir en storage. Si alguno falla, no se guarda ninguno. Se aceptan máximo 8 archivos por request (`TOO_MANY_IMAGES` si se envían más).
+- **Formato real**: el formato se detecta con Pillow y no por la extensión ni el `content_type`. Solo se aceptan JPEG, PNG y WEBP; un GIF devuelve `INVALID_IMAGE`.
+- **Desmarcar la principal** (`is_primary=false`): la primera de las otras imágenes por `sort_order` pasa a ser la principal, para que siempre haya exactamente una.
+- **`PUT .../images/order`** exige la lista completa de ids del producto, sin duplicados. Si no, responde 422 `VALIDATION_ERROR`.
+- **`ProductAdmin`** también incluye `category_slug`, para que el formulario de edición no tenga que buscarlo. Las respuestas públicas de lista también incluyen `images`.
+- **Caché de simulación**: la clave incluye el número de referencias y un hash de sus bytes. Si el admin cambia las referencias, no se reutiliza un resultado viejo.
+- **Presupuesto previo de la simulación**: se estima con `1 + SIMULATION_MAX_REFERENCE_IMAGES` imágenes de entrada, de forma conservadora. El costo real se calcula con las referencias que se usaron de verdad.
+
 ### Pendientes de decidir (detectados en la documentación)
 
 - Idempotencia del resumen diario cuando lo disparan APScheduler y GitHub cron el mismo día (propuesta: omitir si ya existe evento `summary.daily` con la misma fecha).

@@ -1,6 +1,17 @@
 from decimal import Decimal
 
-from sqlalchemy import JSON, Boolean, CheckConstraint, ForeignKey, Index, Integer, Numeric, String, Text
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    CheckConstraint,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    false,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base, TimestampMixin, UpdatedMixin
@@ -66,5 +77,11 @@ class ProductImage(TimestampMixin, Base):
     alt: Mapped[str | None] = mapped_column(String(200))
     is_primary: Mapped[bool] = mapped_column(Boolean, default=False)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    # v0.2: imágenes subidas por el admin (NULL = imagen seed servida en /static/products).
+    storage_key: Mapped[str | None] = mapped_column(String(255))
+    is_reference: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    width: Mapped[int | None] = mapped_column(Integer)
+    height: Mapped[int | None] = mapped_column(Integer)
+    bytes: Mapped[int | None] = mapped_column(Integer)
 
     product: Mapped[Product] = relationship(back_populates="images")

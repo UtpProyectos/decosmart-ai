@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     image_size: str = "1024x1024"
     image_quality: Literal["low", "medium", "high"] = "low"
     simulation_use_product_reference: bool = True
+    simulation_max_reference_images: int = 2
     openai_moderation: bool = True
     agent_history_turns: int = 6
     agent_max_tool_rounds: int = 4
@@ -64,6 +65,7 @@ class Settings(BaseSettings):
     output_quality: int = 82
     output_target_max_kb: int = 400
     max_upload_mb: int = 10
+    max_images_per_product: int = 12
     photo_retention_days: int = 7
     store_full_output: bool = False
 

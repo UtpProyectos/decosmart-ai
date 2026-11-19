@@ -71,10 +71,9 @@ class OpenAIProvider:
                                   "arguments": arguments, "call_id": _value(item, "call_id", "")})
             return ChatResult(items, response.output_text or "", parsed)
 
-    def edit_image(self, room: bytes, reference: bytes | None, prompt: str, size: str, quality: str) -> ImageResult:
+    def edit_image(self, room: bytes, references: list[bytes], prompt: str, size: str, quality: str) -> ImageResult:
         images = [("room.jpg", room, "image/jpeg")]
-        if reference is not None:
-            images.append(("product.jpg", reference, "image/jpeg"))
+        images += [(f"product-{n}.jpg", ref, "image/jpeg") for n, ref in enumerate(references or [], start=1)]
         with self._track("image_edit", self.settings.openai_image_model) as tracker:
             response = self.client.images.edit(model=self.settings.openai_image_model, image=images, prompt=prompt,
                                                size=size, quality=quality, n=1)
@@ -89,7 +88,8 @@ class OpenAIProvider:
                 tracker.output_tokens = usage["output_tokens"]
                 tracker.image_input_tokens = usage["image_input_tokens"]
                 tracker.images, tracker.quality, tracker.size = 1, quality, size
-                tracker.cost_usd = pricing.estimate_image_edit(self.settings.openai_image_model, quality, size, usage)
+                tracker.cost_usd = pricing.estimate_image_edit(self.settings.openai_image_model, quality, size, usage,
+                                                               input_images=len(images))
             return ImageResult(base64.b64decode(response.data[0].b64_json), usage)
 
     def moderate(self, text: str) -> bool:
