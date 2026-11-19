@@ -95,6 +95,12 @@
 - **Resumen diario**: `daily-summary.yml` reintenta hasta 8 veces cada 30 s (servicio dormido) y falla de inmediato ante 401/403.
 - **`scripts/check_env.py`**: validación previa a producción solo con stdlib; sale con código 1 si hay errores (secretos por defecto o < 12 caracteres, `AI_MODE=live` sin clave, S3 sin credenciales, webhook sin `PUBLIC_BASE_URL` https, BD local/SQLite). No imprime valores de secretos.
 
+### Agente IA, bot de Telegram y simulador (`feat/ai-bot`)
+
+- **Seguimiento de uso en el proveedor**: `get_provider` puede recibir la sesión y los identificadores de cliente/simulación. `OpenAIProvider` envuelve cada llamada real con `budget.track`; el proveedor mock registra uso con costo cero. El protocolo público conserva las firmas documentadas.
+- **Reutilización de simulaciones**: una coincidencia de caché comparte el `output_key` inmutable del resultado original, fija `reused_from_id` y costo cero; no duplica bytes ni consume cuota.
+- **Cotizaciones por Telegram**: el evento `quote.created` conserva el único envío del texto completo. El handler del bot responde solo con una confirmación breve y el botón para crear el pedido demo.
+
 ### Backend core (`feat/backend-core`)
 
 #### feat/backend-core
