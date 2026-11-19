@@ -80,7 +80,7 @@ class MockProvider:
             canvas.paste(ref, (image.width - ref.width - 12, image.height - ref.height - 12))
         match = re.search(r"- Producto: ([^(\n]+)", prompt)
         product = match.group(1).strip() if match else "MUEBLE"
-        ImageDraw.Draw(canvas).text((16, image.height + band // 3), f"SIMULACIÓN DEMO – {product}",
+        ImageDraw.Draw(canvas).text((16, image.height + band // 3), _ascii(f"SIMULACION DEMO - {product}"),
                                     fill="white", font=ImageFont.load_default())
         output = BytesIO()
         canvas.save(output, "JPEG", quality=88)
@@ -88,3 +88,10 @@ class MockProvider:
 
     def moderate(self, text: str) -> bool:
         return True
+
+
+def _ascii(text: str) -> str:
+    """La fuente bitmap por defecto de Pillow no tiene tildes/ñ: se normaliza a ASCII para el rótulo demo."""
+    import unicodedata
+
+    return unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode()

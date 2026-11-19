@@ -21,6 +21,7 @@ class AgentReply:
     text: str
     buttons: dict | None = None
     actions: list[dict] = field(default_factory=list)
+    tool_calls: list[dict] | None = None
 
     @property
     def side_effects(self) -> list[dict]:
@@ -64,7 +65,9 @@ def run_agent_turn(db: Session, conversation, user_text: str) -> AgentReply:
             tool_result = dispatch(db, call["name"], call.get("arguments") or {}, ctx)
             results.append(tool_result)
             calls_for_message.append(call)
-            input_items.append({"type": "function_call", **call})
+            # La Responses API exige `arguments` como string JSON al reenviar la llamada.
+            input_items.append({"type": "function_call", "call_id": call["call_id"], "name": call["name"],
+                                "arguments": json.dumps(call.get("arguments") or {}, ensure_ascii=False)})
             input_items.append({"type": "function_call_output", "call_id": call["call_id"],
                                 "output": json.dumps(tool_result, ensure_ascii=False, separators=(",", ":"))})
     else:
@@ -76,7 +79,6 @@ def run_agent_turn(db: Session, conversation, user_text: str) -> AgentReply:
     _, text = guard.validate(text, results, db, customer.id)
     if not already_saved:
         db.add(Message(conversation_id=conversation.id, role="user", content=user_text[:1000]))
-    db.add(Message(conversation_id=conversation.id, role="assistant", content=text,
-                   tool_calls=calls_for_message or None))
-    db.commit()
-    return AgentReply(text, actions=ctx.actions)
+        db.commit()
+    # El mensaje del asistente lo guarda el bot al enviarlo (con tool_calls), para no duplicarlo.
+    return AgentReply(text, actions=ctx.actions, tool_calls=calls_for_message or None)

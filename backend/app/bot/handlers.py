@@ -1,5 +1,6 @@
 """Telegram update router and persistent conversation state machine."""
 
+import re
 import time
 from collections import OrderedDict, defaultdict, deque
 from pathlib import Path
@@ -44,9 +45,10 @@ def _allowed(chat_id: int) -> bool:
     return True
 
 
-def _save(db: Session, conv, role: str, content: str, message_id: int | None = None) -> None:
+def _save(db: Session, conv, role: str, content: str, message_id: int | None = None,
+          tool_calls: list | None = None) -> None:
     db.add(Message(conversation_id=conv.id, role=role, content=content,
-                   telegram_message_id=message_id))
+                   telegram_message_id=message_id, tool_calls=tool_calls))
     customers.touch_conversation(db, conv, commit=False)
     db.commit()
 
@@ -63,6 +65,16 @@ def _send_photo(db: Session, client, conv, chat_id: int, data: bytes, caption: s
     message_id = result.get("message_id") if isinstance(result, dict) else None
     _save(db, conv, "assistant", caption, message_id)
     return result
+
+
+GREETING_WORDS = {"hola", "holi", "buenas", "buenos", "buen", "hey", "hi", "hello", "saludos", "menu", "menú",
+                  "ayuda", "inicio", "empezar"}
+
+
+def _is_greeting(lower: str) -> bool:
+    """Saludo corto (≤ 4 palabras) que empieza con una palabra de saludo → menú de bienvenida, sin LLM."""
+    words = re.findall(r"[a-záéíóúñü]+", lower)
+    return bool(words) and len(words) <= 4 and words[0] in GREETING_WORDS
 
 
 def _context(conv, **changes) -> None:
@@ -231,7 +243,8 @@ def _callback(db: Session, client, conv, customer, chat_id: int, callback: dict)
     elif data.startswith("sim:go:") and conv.state == "sim_confirm":
         sim_id = int(data.rsplit(":", 1)[1])
         _send(db, client, conv, chat_id, texts.PROCESSING)
-        result = simulations.run(db, sim_id)
+        # variant > 0 = "Generar otra versión": nunca reutiliza la caché (ver simulation.service.run).
+        result = simulations.run(db, sim_id, variant=int((conv.context or {}).get("variant", 0)))
         conv.state = "idle"
         db.commit()
         if result.status == "completed":
@@ -308,7 +321,7 @@ def _text(db: Session, client, conv, customer, chat_id: int, message: dict) -> N
         db.commit()
         _send(db, client, conv, chat_id, f"Pedido demo {order.code} registrado. No se realizó ningún cobro.")
         return
-    if lower.startswith("/start") or lower in {"hola", "menu", "menú", "ayuda"}:
+    if lower.startswith("/start") or _is_greeting(lower):
         parts = text.split(maxsplit=1)
         if len(parts) == 2 and parts[1].startswith("sim_"):
             product = catalog.get_product(db, parts[1][4:])
@@ -341,7 +354,11 @@ def _text(db: Session, client, conv, customer, chat_id: int, message: dict) -> N
             _send(db, client, conv, chat_id, "No encontré una solicitud con ese código.")
     else:
         reply = run_agent_turn(db, conv, text)
-        _send(db, client, conv, chat_id, reply.text, reply.buttons)
+        # Las respuestas de la IA siempre llevan el menú de botones y formato HTML seguro.
+        result = client.send_message(chat_id, texts.to_telegram_html(reply.text),
+                                     reply_markup=reply.buttons or keyboards.main_menu(), parse_mode="HTML")
+        message_id = result.get("message_id") if isinstance(result, dict) else None
+        _save(db, conv, "assistant", reply.text, message_id, reply.tool_calls)
         for action in reply.actions:
             if action["type"] == "show_products":
                 ids = action.get("product_ids") or []

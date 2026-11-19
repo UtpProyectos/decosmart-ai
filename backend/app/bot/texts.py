@@ -15,7 +15,7 @@ CONFIRM_SIMULATION = ("Voy a generar la simulación del {product} ({dims}) en tu
                       "y no garantiza que el mueble encaje físicamente. Te quedan {left} simulación(es). "
                       "¿Genero la imagen?")
 PROCESSING = "Generando tu simulación… puede tardar hasta un minuto ⏳"
-RESULT_CAPTION = ("Así podría verse el {product} en tu ambiente. *Simulación orientativa generada con IA.* "
+RESULT_CAPTION = ("Así podría verse el {product} en tu ambiente. Simulación orientativa generada con IA. "
                   "¿Qué tan útil te resultó?")
 QUOTA_EXHAUSTED = ("Ya usaste tus {max} simulaciones disponibles. Puedo ayudarte con medidas, recomendaciones o una "
                    "cotización.")
@@ -49,3 +49,21 @@ def product_caption(product) -> str:
 
 def quote_text(quote) -> str:
     return format_quote_text(quote)
+
+
+def to_telegram_html(text: str) -> str:
+    """Convierte el Markdown ligero que usa el LLM a HTML de Telegram (escapando el resto).
+
+    Soporta **negrita**, *cursiva*/_cursiva_ y `código`. Telegram no renderiza Markdown estándar con
+    parse_mode=None, por eso aparecían los asteriscos literales.
+    """
+    import html
+    import re
+
+    out = html.escape(text, quote=False)
+    out = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", out, flags=re.S)
+    out = re.sub(r"(?<![\w*])\*(?!\s)(.+?)(?<!\s)\*(?![\w*])", r"<i>\1</i>", out)
+    out = re.sub(r"(?<!\w)_(?!\s)(.+?)(?<!\s)_(?!\w)", r"<i>\1</i>", out)
+    out = re.sub(r"`([^`]+)`", r"<code>\1</code>", out)
+    out = re.sub(r"(?m)^#{1,6}\s*(.+)$", r"<b>\1</b>", out)
+    return out

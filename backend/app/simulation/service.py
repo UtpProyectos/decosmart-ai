@@ -122,7 +122,7 @@ def _cache_key(sim: Simulation, variant: int, references: list[bytes] | None = N
     # Huella de las referencias: cambian si el admin marca/reordena/sube otras imágenes del mueble.
     ref_digest = sha256(b"".join(sha256(r).digest() for r in refs)).hexdigest()[:16] if refs else ""
     raw = "|".join(str(x or "") for x in (sim.input_hash, sim.product_id, sim.room_width_cm,
-                    sim.room_height_cm, sim.room_depth_cm, sim.placement_hint, s.openai_image_model,
+                    sim.room_height_cm, sim.room_depth_cm, sim.placement_hint, s.ai_mode, s.openai_image_model,
                     s.image_size, s.image_quality, variant, f"refs={len(refs)}", ref_digest))
     return sha256(raw.encode()).hexdigest()
 
@@ -144,8 +144,10 @@ def run(db: Session, simulation_id: int, *, variant: int = 0) -> SimulationResul
         raise ValueError("La simulación no está lista para generarse")
     references = _references(db, sim)
     sim.cache_key = _cache_key(sim, variant, references)
-    cached = db.scalar(select(Simulation).where(Simulation.status == "completed",
-                       Simulation.cache_key == sim.cache_key, Simulation.id != sim.id).order_by(Simulation.id))
+    # Regenerar (variant > 0) siempre pide una imagen nueva; la caché solo evita repetir la misma solicitud.
+    cached = None if variant > 0 else db.scalar(
+        select(Simulation).where(Simulation.status == "completed", Simulation.cache_key == sim.cache_key,
+                                 Simulation.id != sim.id).order_by(Simulation.id))
     storage = get_storage()
     if cached and cached.output_key and storage.exists(cached.output_key):
         sim.output_key, sim.output_bytes = cached.output_key, cached.output_bytes
