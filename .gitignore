@@ -40,4 +40,4 @@ Thumbs.db
 *.db
 
 # Worktrees/estado local de Claude Code
-.claude/
+.claude/ 
