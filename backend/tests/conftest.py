@@ -13,16 +13,26 @@ from fastapi.testclient import TestClient  # noqa: E402
 from app.core.db import Base, SessionLocal, engine  # noqa: E402
 
 
+def _reset_db() -> None:
+    """Deja la BD vacía, incluida la marca de Alembic.
+
+    Si quedara `alembic_version` (p. ej. CI corre `alembic upgrade head` antes de pytest), el lifespan
+    creería que las migraciones ya están aplicadas y no recrearía las tablas → "relation does not exist".
+    """
+    engine.dispose()  # cierra conexiones abiertas que en Postgres bloquearían el DROP
+    Base.metadata.drop_all(engine)
+    with engine.begin() as conn:
+        conn.exec_driver_sql("DROP TABLE IF EXISTS alembic_version")
+
+
 @pytest.fixture()
 def client():
-    Base.metadata.drop_all(engine)
+    _reset_db()
     from app.main import create_app
 
     with TestClient(create_app()) as c:  # lifespan: migraciones + seed
         yield c
-    Base.metadata.drop_all(engine)
-    with engine.begin() as conn:
-        conn.exec_driver_sql("DROP TABLE IF EXISTS alembic_version")
+    _reset_db()
 
 
 @pytest.fixture()
